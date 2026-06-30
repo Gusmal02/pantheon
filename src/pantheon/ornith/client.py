@@ -7,6 +7,7 @@ from qdrant_client import QdrantClient, models
 from pantheon.core.config import settings
 from pantheon.ornith.embedding import embed_dense, embed_sparse
 from pantheon.ornith.episode_schema import Episode
+from pantheon.ornith.ner_extractor import extract_iocs
 
 DENSE_VECTOR_NAME = "dense"
 SPARSE_VECTOR_NAME = "sparse"
@@ -34,6 +35,10 @@ def ensure_collection() -> None:
 
 def index_episode(episode: Episode) -> None:
     """Indexa un episodio: vectoriza anomaly_signature + hypothesis, guarda el resto como payload."""
+    if not episode.iocs_extraidos:
+        full_text = f"{episode.anomaly_signature} {episode.hypothesis}"
+        episode.iocs_extraidos = extract_iocs(full_text)
+
     text_to_embed = f"{episode.anomaly_signature}. {episode.hypothesis}"
     dense_vector = embed_dense(text_to_embed)
     sparse_vector = embed_sparse(text_to_embed)
