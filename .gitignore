@@ -1,0 +1,8 @@
+@"
+.env
+__pycache__/
+*.pyc
+.venv/
+data/raw/
+data/processed/
+"@ | Out-File -Encoding utf8 .gitignore
