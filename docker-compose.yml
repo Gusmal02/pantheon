@@ -1,0 +1,68 @@
+networks:
+  pantheon-net:
+    external: true
+
+volumes:
+  qdrant_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: pantheon-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - pantheon-net
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: pantheon-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pantheon-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: pantheon-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - pantheon-net
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: pantheon-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - pantheon-net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: pantheon-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - pantheon-net
+    restart: unless-stopped
