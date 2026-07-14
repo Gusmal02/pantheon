@@ -5,45 +5,54 @@
 Pantheon es un sistema de caza de amenazas compuesto por ocho subsistemas especializados que se comunican mediante eventos asíncronos (Redis Streams) y coordinan mediante una API REST central. El principio rector es la **separación de decisión y ejecución**: la IA sugiere, el humano y las reglas deterministas autorizan.
 
 ```
-Red corporativa
-      │
-      ▼
-┌─────────────┐    ┌─────────────┐
-│  InputGuard │───▶│  Centinela  │
-│  (Guards)   │    │  (anomaly)  │
-└─────────────┘    └──────┬──────┘
-                          │ CCI ≥ threshold
-                          ▼
-                   ┌──────────────┐    ┌────────────┐
-                   │    Ornith    │───▶│ ATT&CK     │
-                   │  (episodic  │    │  Graph     │
-                   │   memory)   │    └────────────┘
-                   └──────┬───────┘
-                          │ docs + TTPs
-                          ▼
-                   ┌──────────────┐    ┌────────────┐
-                   │ Acme Ranker  │◀───│   IPCA     │
-                   │ (Stage1+2)  │    │ (per-op)   │
-                   └──────┬───────┘    └────────────┘
-                          │ hipótesis rankeadas
-                          ▼
-                   ┌──────────────┐
-                   │  War Room   │  ◀── Operador humano
-                   │  (Gradio)   │
-                   └──────┬───────┘
-                          │ playbook seleccionado
-                          ▼
+Red corporativa          Ares v3.2 (pentesting)
+      │                        │
+      ▼                        │ POST /purple/escalated (webhook)
+┌─────────────┐    ┌───────────┴───────┐
+│  InputGuard │    │   Purple Bridge   │◀─── AresBridgeWorker (polling)
+│  (Guards)   │    │  (purple_bridge)  │
+└──────┬──────┘    └─────────┬─────────┘
+       │                     │ EscalatedHypothesis
+       ▼                     ▼
+┌─────────────┐    ┌─────────────────┐
+│  Centinela  │◀───│ ares_finding_   │
+│  (anomaly)  │    │ to_anomaly()    │
+└──────┬──────┘    └─────────────────┘
+       │ CCI ≥ threshold          │ CCI ≥ 0.75
+       │                          ▼
+       │                 publish_killswitch_to_ares()
+       │                 → ares:killswitch (Redis)
+       ▼
+┌──────────────┐    ┌────────────┐
+│    Ornith    │───▶│ ATT&CK     │
+│  (episodic  │    │  Graph     │
+│   memory)   │    └────────────┘
+└──────┬───────┘
+       │ docs + TTPs
+       ▼
+┌──────────────┐    ┌────────────┐
+│ Acme Ranker  │◀───│   IPCA     │
+│ (Stage1+2)  │    │ (per-op)   │
+└──────┬───────┘    └────────────┘
+       │ hipótesis rankeadas
+       ▼
+┌──────────────┐    ┌──────────────┐
+│    Hermes    │───▶│  War Room   │◀── Operador humano
+│  (CRAG LG)  │    │  (Gradio)   │
+└──────────────┘    └──────┬───────┘
+                           │ playbook seleccionado
+                           ▼
                    ┌──────────────┐
                    │   Muralla   │  ← política determinista
                    │  (3 gates)  │
                    └──────┬───────┘
-                          │ ALLOWED
-                          ▼
+                           │ ALLOWED
+                           ▼
                    ┌──────────────┐
                    │ ApprovalGate │  ← aprobación humana
                    └──────┬───────┘
-                          │
-                          ▼
+                           │
+                           ▼
                    ┌──────────────┐    ┌─────────────────┐
                    │  Audit Trail │───▶│  PreCommitLog   │
                    │  (Outbox)   │    │  (WORM + fsync) │
@@ -143,6 +152,23 @@ SHA-256(L2_normalized_vec_bytes ‖ sorted_doc_ids_json ‖ template_hash)
 
 La normalización L2 y el redondeo a 4 decimales garantizan que vectores "equivalentes" (con pequeñas diferencias de punto flotante) produzcan el mismo fingerprint. La ordenación de `doc_ids` garantiza invariancia de orden.
 
+### 9. Integración bidireccional Ares — dos modos simultáneos
+
+**Problema:** Ares v3.2 genera hallazgos de pentesting relevantes para Pantheon (IPs evasivas, puertos críticos). Pantheon puede detectar patrones que Ares no ve (correlación multi-scan, contexto histórico en Ornith). Se necesita integración sin acoplamiento rígido.
+
+**Decisión:** Dos modos independientes que pueden correr a la vez:
+1. **Webhook pasivo:** Ares empuja `POST /purple/escalated` cuando encuentra comportamiento evasivo. Pantón valida y almacena. Latencia mínima, sin polling.
+2. **Polling activo (`AresBridgeWorker`):** Pantheon hace `GET /purple/escalated?since=<ISO>` periódicamente. Permite operar aunque Ares no conozca la URL de Pantheon. Configurable por `ARES_API_URL`.
+
+El puente de datos (`ares_finding_to_anomaly`) mapea el espacio de features de Acheron/Ares al espacio de features de Centinela mediante normalización determinista. El ICC de Ares (baja = más evasivo) se invierte para alinearlo con la semántica de CCI de Centinela (alta = más sospechoso).
+
+**Kill switch cruzado:** publicado en `ares:killswitch` vía Redis Pub/Sub. Ares ya escucha ese canal; no requiere cambios en Ares.
+
+**Alternativas descartadas:**
+- API bidireccional con autenticación mutua: acoplamiento fuerte, requiere configuración en Ares.
+- Cola compartida en PostgreSQL: introduce dependencia de BD entre dos sistemas independientes.
+- Solo webhook sin polling: si Ares no sabe la URL de Pantheon (entornos air-gapped), la integración falla completamente.
+
 ---
 
 ## Flujo de datos principal
@@ -184,34 +210,42 @@ pantheon/
 │   │   ├── ipca.py            # IncrementalPCA por operador
 │   │   ├── ranker.py          # Pipeline Stage1+2
 │   │   └── stage1.py          # LightGBM ranker
-│   ├── api/           # FastAPI REST
+│   ├── api/           # FastAPI REST (11 endpoints)
 │   ├── attck_graph/   # Grafo MITRE ATT&CK (NetworkX)
 │   ├── audit/         # Audit Trail + Outbox
 │   │   ├── enclave.py         # Pre-commit log con chain hash
 │   │   ├── trail.py           # AuditTrail (PostgreSQL)
 │   │   ├── worker.py          # OutboxWorker
 │   │   └── worm.py            # Replicación WORM
-│   ├── cache/         # Caché semántico
+│   ├── cache/         # Caché semántico (fingerprint SHA-256)
 │   ├── centinela/     # Detección de anomalías
 │   │   ├── cci.py             # Composite Confidence Index
 │   │   ├── detector.py        # IsolationForest wrapper
 │   │   └── pipeline.py        # Pipeline completo
-│   ├── core/          # Config, ApprovalGate, EventBus
+│   ├── core/
+│   │   ├── config.py          # Settings + variables de entorno
+│   │   ├── approval_gate.py   # ApprovalGate fail-closed
+│   │   ├── event_bus.py       # EventBus (Redis Streams)
+│   │   └── purple_bridge.py   # Integración bidireccional Ares v3.2
 │   ├── guards/        # InputGuard, CircuitBreaker, Classifier
-│   ├── hermes/        # Agente LangGraph (en construcción)
+│   ├── hermes/        # Agente CRAG (LangGraph)
+│   │   ├── agent.py           # HermesAgent + routing
+│   │   ├── nodes.py           # Nodos del grafo (retrieve, grade, verify…)
+│   │   └── state.py           # HermesState TypedDict
 │   ├── muralla/       # Validación determinista de playbooks
 │   │   ├── allowlist.py       # SHA-256 allowlist
 │   │   └── validator.py       # MurallaGuard + SimScope
 │   ├── ornith/        # Memoria episódica (Qdrant)
-│   └── war_room/      # UI Gradio (en construcción)
+│   └── war_room/      # UI Gradio (Adaptive Watchdog + Kill Switch)
+│       └── app.py             # SessionState, AdaptiveWatchdog, Gradio UI
 ├── policy/
 │   ├── curated_playbooks.json # Allowlist de playbooks (SHA-256)
 │   └── sim_scope.json         # Scope del entorno simulado
 ├── scripts/
 │   └── init_db.py     # Schema PostgreSQL
 ├── tests/
-│   ├── unit/          # Tests por módulo (200 tests)
-│   └── adversarial/   # Tests de ataques (21 tests)
+│   ├── unit/          # 320 tests por módulo (13 archivos)
+│   └── adversarial/   # 21 tests de vectores de ataque
 ├── audit/             # Directorio del pre-commit log (runtime)
 ├── docker-compose.yml
 ├── pyproject.toml

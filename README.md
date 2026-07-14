@@ -52,9 +52,10 @@ La mayoría de las herramientas de seguridad automatizan las acciones de forma c
 | API REST (FastAPI) | ✅ Completo |
 | Caché semántico | ✅ Completo |
 | Grafo ATT&CK | ✅ Completo |
-| Tests adversariales (221 tests en total) | ✅ Completo |
-| Agente de investigación (Hermes) | 🔄 En construcción |
-| Interfaz de operador (War Room) | 🔄 En construcción |
+| Agente de investigación CRAG (Hermes) | ✅ Completo |
+| Interfaz de operador con watchdog (War Room) | ✅ Completo |
+| Integración bidireccional con Ares v3.2 (Purple Bridge) | ✅ Completo |
+| Suite de tests (341 tests, 0 fallos) | ✅ Completo |
 
 ---
 
@@ -129,9 +130,10 @@ Most security tools automate actions blindly. Pantheon does the opposite:
 | REST API (FastAPI) | ✅ Complete |
 | Semantic cache | ✅ Complete |
 | ATT&CK graph | ✅ Complete |
-| Adversarial tests (221 total) | ✅ Complete |
-| Investigation agent (Hermes) | 🔄 In progress |
-| Operator interface (War Room) | 🔄 In progress |
+| CRAG investigation agent (Hermes) | ✅ Complete |
+| Operator interface with watchdog (War Room) | ✅ Complete |
+| Bidirectional Ares v3.2 integration (Purple Bridge) | ✅ Complete |
+| Test suite (341 tests, 0 failures) | ✅ Complete |
 
 ---
 

@@ -50,6 +50,9 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=pantheon
 POSTGRES_USER=pantheon
+
+# Integración con Ares v3.2 (opcional — solo si usas el Purple Bridge)
+ARES_API_URL=http://localhost:8001
 ```
 
 > **Importante:** Nunca subas el archivo `.env` a Git. Ya está en `.gitignore`.
@@ -115,7 +118,7 @@ uv run pytest
 
 Resultado esperado:
 ```
-221 passed in ~9s
+341 passed in ~20s
 ```
 
 Si algún test falla, verifica:
@@ -288,6 +291,9 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=pantheon
 POSTGRES_USER=pantheon
+
+# Ares v3.2 integration (optional — only if using the Purple Bridge)
+ARES_API_URL=http://localhost:8001
 ```
 
 > **Important:** Never commit the `.env` file to Git. It's already in `.gitignore`.
@@ -353,7 +359,7 @@ uv run pytest
 
 Expected output:
 ```
-221 passed in ~9s
+341 passed in ~20s
 ```
 
 If any test fails, verify:
