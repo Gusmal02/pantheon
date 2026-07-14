@@ -24,6 +24,7 @@ Seguridad:
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -32,6 +33,8 @@ from typing import Optional
 from pydantic import BaseModel, field_validator
 
 from pantheon.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Allowlist de hosts Ares autorizados a publicar escalados
 _ALLOWED_ARES_HOSTS = {
@@ -44,8 +47,41 @@ _ALLOWED_ARES_HOSTS = {
 # Patrón de hypothesis_id: alfanumérico + guiones, máx 64 chars
 _HYPOTHESIS_ID_RE = re.compile(r"^[a-zA-Z0-9\-_]{1,64}$")
 
-# Almacén en memoria de escalados recibidos (en producción: PostgreSQL)
+# Almacén en memoria (siempre activo como fallback)
 _escalated_store: list[dict] = []
+
+# ── Persistencia en PostgreSQL ────────────────────────────────────────────────
+
+def _db_connect():
+    import psycopg2
+    return psycopg2.connect(
+        host=settings.postgres_host, port=settings.postgres_port,
+        dbname=settings.postgres_db, user=settings.postgres_user,
+        password=settings.postgres_password, connect_timeout=2,
+    )
+
+
+def _db_available() -> bool:
+    try:
+        conn = _db_connect()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+# Estado de disponibilidad (evaluado una vez al importar para evitar latencia)
+_USE_DB: bool = False
+
+def _init_db_flag() -> None:
+    global _USE_DB
+    _USE_DB = _db_available()
+    if _USE_DB:
+        logger.info("purple_bridge: usando PostgreSQL como almacén primario")
+    else:
+        logger.info("purple_bridge: usando almacén en memoria (PostgreSQL no disponible)")
+
+_init_db_flag()
 
 
 # ── Modelos Pydantic ──────────────────────────────────────────────────────────
@@ -129,12 +165,7 @@ def receive_escalated(payload: dict) -> EscalatedRecord:
     Recibe y valida un escalado de Ares.
 
     Valida con Pydantic antes de almacenar. Rechaza duplicados por content_hash.
-
-    Args:
-        payload — dict con los campos de EscalatedHypothesis
-
-    Returns:
-        EscalatedRecord con el escalado procesado.
+    Escribe en PostgreSQL si está disponible; siempre escribe en memoria.
 
     Raises:
         PurpleBridgeError si la validación falla o es duplicado.
@@ -146,12 +177,7 @@ def receive_escalated(payload: dict) -> EscalatedRecord:
 
     record = EscalatedRecord(hypothesis=hypothesis)
 
-    # Evitar duplicados por hash de contenido
-    existing_hashes = {r["content_hash"] for r in _escalated_store}
-    if record.content_hash in existing_hashes:
-        raise PurpleBridgeError(f"Escalado duplicado detectado: {record.content_hash[:16]}…")
-
-    _escalated_store.append({
+    row = {
         "hypothesis_id": hypothesis.hypothesis_id,
         "source_ip":     hypothesis.source_ip,
         "ttp_tags":      hypothesis.ttp_tags,
@@ -162,29 +188,107 @@ def receive_escalated(payload: dict) -> EscalatedRecord:
         "received_at":   record.received_at,
         "content_hash":  record.content_hash,
         "processed":     False,
-    })
+    }
+
+    if _USE_DB:
+        _db_receive(row, record.content_hash)
+    else:
+        # Evitar duplicados en memoria
+        existing_hashes = {r["content_hash"] for r in _escalated_store}
+        if record.content_hash in existing_hashes:
+            raise PurpleBridgeError(f"Escalado duplicado detectado: {record.content_hash[:16]}…")
+        _escalated_store.append(row)
+
+    from pantheon.core.metrics import PURPLE_ESCALATED_TOTAL
+    PURPLE_ESCALATED_TOTAL.inc()
     return record
+
+
+def _db_receive(row: dict, content_hash: str) -> None:
+    """INSERT en purple_escalated; lanza PurpleBridgeError si es duplicado."""
+    try:
+        import psycopg2
+        conn = _db_connect()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO purple_escalated
+                        (content_hash, hypothesis_id, source_ip, ttp_tags,
+                         severity, narrative, ares_source, timestamp_ts, received_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        content_hash,
+                        row["hypothesis_id"], row["source_ip"],
+                        row["ttp_tags"],      row["severity"],
+                        row["narrative"],     row["ares_source"],
+                        row["timestamp"],     row["received_at"],
+                    ),
+                )
+        conn.close()
+    except Exception as exc:
+        if "duplicate" in str(exc).lower() or "unique" in str(exc).lower():
+            raise PurpleBridgeError(f"Escalado duplicado detectado: {content_hash[:16]}…") from exc
+        logger.warning("purple_bridge._db_receive: %s — usando fallback en memoria", exc)
+        existing_hashes = {r["content_hash"] for r in _escalated_store}
+        if content_hash in existing_hashes:
+            raise PurpleBridgeError(f"Escalado duplicado detectado: {content_hash[:16]}…")
+        _escalated_store.append(row)
 
 
 def get_escalated(limit: int = 50, only_unprocessed: bool = False) -> list[dict]:
     """
     Devuelve los escalados recibidos desde Ares.
 
-    Args:
-        limit           — máximo de registros a devolver
-        only_unprocessed — si True, solo los no procesados por Hermes
-
-    Returns:
-        Lista de dicts con los escalados.
+    Lee de PostgreSQL si está disponible, de lo contrario del almacén en memoria.
     """
+    if _USE_DB:
+        return _db_get_escalated(limit, only_unprocessed)
+
     results = _escalated_store
     if only_unprocessed:
         results = [r for r in results if not r["processed"]]
     return results[-limit:]
 
 
+def _db_get_escalated(limit: int, only_unprocessed: bool) -> list[dict]:
+    try:
+        conn = _db_connect()
+        where = "WHERE processed = FALSE" if only_unprocessed else ""
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT content_hash, hypothesis_id, source_ip, ttp_tags,
+                       severity, narrative, ares_source, timestamp_ts, received_at, processed
+                FROM purple_escalated
+                {where}
+                ORDER BY received_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+        conn.close()
+        return [
+            {
+                "content_hash":  r[0], "hypothesis_id": r[1],
+                "source_ip":     r[2], "ttp_tags":      list(r[3]),
+                "severity":      r[4], "narrative":     r[5],
+                "ares_source":   r[6], "timestamp":     r[7],
+                "received_at":   r[8], "processed":     r[9],
+            }
+            for r in rows
+        ]
+    except Exception as exc:
+        logger.warning("purple_bridge._db_get_escalated: %s", exc)
+        return []
+
+
 def mark_processed(content_hash: str) -> bool:
     """Marca un escalado como procesado por Hermes."""
+    if _USE_DB:
+        return _db_mark_processed(content_hash)
     for record in _escalated_store:
         if record["content_hash"] == content_hash:
             record["processed"] = True
@@ -192,9 +296,35 @@ def mark_processed(content_hash: str) -> bool:
     return False
 
 
+def _db_mark_processed(content_hash: str) -> bool:
+    try:
+        conn = _db_connect()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE purple_escalated SET processed = TRUE WHERE content_hash = %s",
+                    (content_hash,),
+                )
+                updated = cur.rowcount
+        conn.close()
+        return updated > 0
+    except Exception as exc:
+        logger.warning("purple_bridge._db_mark_processed: %s", exc)
+        return False
+
+
 def clear_store() -> None:
-    """Limpia el store en memoria. Solo para tests."""
+    """Limpia el store. En tests: borra la memoria. Con DB: también trunca la tabla."""
     _escalated_store.clear()
+    if _USE_DB:
+        try:
+            conn = _db_connect()
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("TRUNCATE TABLE purple_escalated")
+            conn.close()
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -325,6 +455,7 @@ class AresBridgeWorker:
         centinela_feed: Optional[CentinelaFeedFn] = None,
         cci_critical_threshold: float = 0.75,
     ) -> None:
+        from pantheon.guards.circuit_breaker import CircuitBreaker
         self._url = ares_api_url.rstrip("/")
         self._interval = poll_interval_secs
         self._http = http_client
@@ -335,6 +466,12 @@ class AresBridgeWorker:
         self._thread: Optional[threading.Thread] = None
         self._errors: list[str] = []
         self._processed_count: int = 0
+        # Circuit breaker: se abre tras N fallos HTTP consecutivos
+        self._cb = CircuitBreaker(
+            rate_limit=settings.ares_poll_cb_failures,
+            window_secs=60.0,
+            cooldown_secs=120.0,
+        )
 
     def start(self) -> None:
         if self._running:
@@ -385,21 +522,36 @@ class AresBridgeWorker:
             time.sleep(self._interval)
 
     def _fetch_escalated(self, since_iso: str) -> list[dict]:
-        """Llama a GET {ARES_API_URL}/purple/escalated?since=<ISO>."""
+        """
+        Llama a GET {ARES_API_URL}/purple/escalated?since=<ISO>.
+
+        Si el circuit breaker está abierto (demasiados fallos recientes),
+        omite la llamada HTTP y devuelve lista vacía.
+        """
+        from pantheon.core.metrics import ARES_POLLS_TOTAL
+        self._cb.tick()
+        if self._cb.is_open:
+            ARES_POLLS_TOTAL.labels(status="cb_open").inc()
+            return []
+
         endpoint = f"{self._url}/purple/escalated"
         try:
             if self._http is not None:
                 response = self._http.get(endpoint, params={"since": since_iso}, timeout=10)
                 response.raise_for_status()
-                return response.json().get("escalated", [])
+                result = response.json().get("escalated", [])
             else:
                 import httpx
                 with httpx.Client(timeout=10) as client:
                     r = client.get(endpoint, params={"since": since_iso})
                     r.raise_for_status()
-                    return r.json().get("escalated", [])
+                    result = r.json().get("escalated", [])
+            ARES_POLLS_TOTAL.labels(status="ok").inc()
+            return result
         except Exception as exc:
             self._errors.append(f"fetch error: {exc}")
+            self._cb.record_ambiguous()   # cuenta como fallo
+            ARES_POLLS_TOTAL.labels(status="error").inc()
             return []
 
     def _process_record(self, record: dict) -> None:

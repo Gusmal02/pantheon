@@ -62,6 +62,27 @@ CREATE TABLE IF NOT EXISTS operators (
     ipca_state      BYTEA,
     calibrated      BOOLEAN     NOT NULL DEFAULT FALSE
 );
+
+-- Escalados del Purple Team Bridge (Ares v3.2 → Pantheon)
+CREATE TABLE IF NOT EXISTS purple_escalated (
+    content_hash    TEXT            PRIMARY KEY,
+    hypothesis_id   TEXT            NOT NULL,
+    source_ip       TEXT            NOT NULL,
+    ttp_tags        TEXT[]          NOT NULL DEFAULT '{}',
+    severity        TEXT            NOT NULL DEFAULT 'moderate',
+    narrative       TEXT            NOT NULL,
+    ares_source     TEXT            NOT NULL,
+    timestamp_ts    DOUBLE PRECISION NOT NULL,
+    received_at     DOUBLE PRECISION NOT NULL,
+    processed       BOOLEAN         NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_purple_escalated_unprocessed
+    ON purple_escalated (processed, received_at DESC)
+    WHERE processed = FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_purple_escalated_received
+    ON purple_escalated (received_at DESC);
 """
 
 

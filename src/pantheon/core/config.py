@@ -53,6 +53,14 @@ class Settings(BaseSettings):
 
     # Purple Team
     ares_api_url: str = "http://localhost:8000"
+    ares_poll_cb_failures: int = 5   # fallos HTTP antes de abrir el circuit breaker
+
+    # Ollama (LLM local)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
+
+    # Rate limiting de la API REST
+    api_rate_limit: int = 120   # max requests por IP por minuto
 
     @property
     def postgres_dsn(self) -> str:

@@ -200,6 +200,51 @@ Puente de datos entre Pantheon y Ares v3.2 (plataforma de pentesting). Opera en 
 
 **Kill Switch cruzado:** si CCI ≥ 0.75 en Centinela, `publish_killswitch_to_ares()` publica en el canal Redis `ares:killswitch` con `{"reason", "source": "pantheon", "target", "operator_id", "timestamp"}`. Ares escucha este canal y aborta el engagement automáticamente.
 
+### 13. PantheonPipeline — Pipeline end-to-end
+
+**Archivo:** `src/pantheon/core/pipeline.py`
+
+Singleton thread-safe que encadena InputGuard → Centinela → Hermes → AcmeRanker. La API REST obtiene la instancia con `get_pipeline()` (doble verificación de bloqueo).
+
+- **Detección en frío:** si `AnomalyDetector` no está entrenado, genera 200 muestras sintéticas benignas (`rng.normal(0.5, 0.15, (200, n))`) y hace auto-fit. Sincroniza la referencia interna de Centinela con `self._centinela._detector = self._detector`.
+- **PipelineResult:** dataclass con `session_id`, `source_ip`, `cci`, `is_critical`, `guard_verdict`, `hermes_result`, `error`. El método `to_dict()` serializa todo a JSON.
+
+### 14. OllamaLLM — LLM local
+
+**Archivo:** `src/pantheon/core/ollama_llm.py`
+
+Wrapper sobre la API HTTP de Ollama (`POST /api/chat`). `try_create()` hace `GET /api/tags` con timeout de 2 s: devuelve `None` si Ollama no está corriendo, instancia `OllamaLLM` si está disponible. Hermes llama `try_create()` en cada inicialización para activar el LLM real si está disponible o caer a fallbacks deterministas si no.
+
+### 15. ProfileStore — Persistencia de perfiles IPCA
+
+**Archivo:** `src/pantheon/core/profile_store.py`
+
+UPSERT en tabla `operators` (PostgreSQL) para persistir perfiles `OperatorProfile` entre reinicios. En `__init__` hace ping a la BD (timeout 2 s): si falla, todos los métodos son no-op silenciosos. `AcmeRanker` lo usa automáticamente.
+
+### 16. Métricas Prometheus
+
+**Archivo:** `src/pantheon/core/metrics.py`
+
+Contadores e histogramas exportados en `GET /metrics` como `text/plain; version=0.0.4`:
+
+| Métrica | Tipo | Labels |
+|---|---|---|
+| `pantheon_events_processed_total` | Counter | `verdict` |
+| `pantheon_cci_score` | Histogram | — |
+| `pantheon_hypotheses_generated_total` | Counter | — |
+| `pantheon_hermes_iterations_total` | Histogram | — |
+| `pantheon_ares_polls_total` | Counter | `status` (ok\|error\|cb_open) |
+| `pantheon_purple_escalated_total` | Counter | — |
+| `pantheon_feedback_accepted_total` | Counter | `operator_id` |
+| `pantheon_killswitch_triggered_total` | Counter | `source` |
+| `pantheon_rate_limited_requests_total` | Counter | — |
+
+### 17. Rate Limiting
+
+**Archivo:** `src/pantheon/api/main.py` — clase `_RateLimiter`
+
+Token bucket por IP en ventana deslizante de 60 s. `threading.Lock` para seguridad de hilos. Exento: `/health` y `/metrics`. Al superar el límite devuelve HTTP 429 con `{"detail": "rate limit exceeded"}`. Configurable vía `API_RATE_LIMIT` (default: 120 req/min).
+
 ---
 
 ## Seguridad — Principios no negociables
@@ -217,7 +262,7 @@ Puente de datos entre Pantheon y Ares v3.2 (plataforma de pentesting). Opera en 
 ## Tests
 
 ```
-341 tests  |  0 fallos  |  ~20s
+368 tests  |  0 fallos  |  ~25s
 ```
 
 | Suite | Tests | Cobertura |
@@ -235,6 +280,7 @@ Puente de datos entre Pantheon y Ares v3.2 (plataforma de pentesting). Opera en 
 | `tests/unit/test_war_room.py` | 29 | War Room, watchdog, JWT, feedback |
 | `tests/unit/test_purple_bridge.py` | 28 | Purple Bridge webhook, Pydantic, deduplicación |
 | `tests/unit/test_ares_bridge.py` | 34 | AresBridgeWorker, vector de features, kill switch |
+| `tests/unit/test_improvements.py` | 27 | Pipeline, OllamaLLM, ProfileStore, CB, rate limit, métricas |
 | `tests/adversarial/` | 21 | 6 vectores de ataque adversarial |
 
 Vectores adversariales cubiertos:
@@ -450,6 +496,51 @@ Data bridge between Pantheon and Ares v3.2 (pentesting platform). Operates in tw
 
 **Cross kill switch:** if CCI ≥ 0.75 in Centinela, `publish_killswitch_to_ares()` publishes to Redis channel `ares:killswitch` with `{"reason", "source": "pantheon", "target", "operator_id", "timestamp"}`. Ares listens on this channel and aborts the engagement automatically.
 
+### 13. PantheonPipeline — End-to-end pipeline
+
+**File:** `src/pantheon/core/pipeline.py`
+
+Thread-safe singleton chaining InputGuard → Centinela → Hermes → AcmeRanker. The REST API retrieves the instance via `get_pipeline()` (double-checked locking).
+
+- **Cold-start detection:** if `AnomalyDetector` is unfitted, generates 200 synthetic benign samples (`rng.normal(0.5, 0.15, (200, n))`) and auto-fits. Syncs Centinela's internal reference with `self._centinela._detector = self._detector`.
+- **PipelineResult:** dataclass with `session_id`, `source_ip`, `cci`, `is_critical`, `guard_verdict`, `hermes_result`, `error`. The `to_dict()` method serializes everything to JSON.
+
+### 14. OllamaLLM — Local LLM
+
+**File:** `src/pantheon/core/ollama_llm.py`
+
+Wrapper over the Ollama HTTP API (`POST /api/chat`). `try_create()` hits `GET /api/tags` with a 2 s timeout: returns `None` if Ollama is offline, returns an `OllamaLLM` instance if available. Hermes calls `try_create()` at initialization to activate the real LLM if available or fall back to deterministic stubs otherwise.
+
+### 15. ProfileStore — IPCA profile persistence
+
+**File:** `src/pantheon/core/profile_store.py`
+
+UPSERT into the `operators` table (PostgreSQL) to persist `OperatorProfile` objects across restarts. On `__init__`, pings the DB (2 s timeout): if it fails, all methods are silent no-ops. `AcmeRanker` uses it automatically.
+
+### 16. Prometheus Metrics
+
+**File:** `src/pantheon/core/metrics.py`
+
+Counters and histograms exported at `GET /metrics` as `text/plain; version=0.0.4`:
+
+| Metric | Type | Labels |
+|---|---|---|
+| `pantheon_events_processed_total` | Counter | `verdict` |
+| `pantheon_cci_score` | Histogram | — |
+| `pantheon_hypotheses_generated_total` | Counter | — |
+| `pantheon_hermes_iterations_total` | Histogram | — |
+| `pantheon_ares_polls_total` | Counter | `status` (ok\|error\|cb_open) |
+| `pantheon_purple_escalated_total` | Counter | — |
+| `pantheon_feedback_accepted_total` | Counter | `operator_id` |
+| `pantheon_killswitch_triggered_total` | Counter | `source` |
+| `pantheon_rate_limited_requests_total` | Counter | — |
+
+### 17. Rate Limiting
+
+**File:** `src/pantheon/api/main.py` — `_RateLimiter` class
+
+Per-IP token bucket in a 60 s sliding window. `threading.Lock` for thread safety. Exempt: `/health` and `/metrics`. Exceeding the limit returns HTTP 429 with `{"detail": "rate limit exceeded"}`. Configurable via `API_RATE_LIMIT` (default: 120 req/min).
+
 ---
 
 ## Security — Non-negotiable Principles
@@ -467,7 +558,7 @@ Data bridge between Pantheon and Ares v3.2 (pentesting platform). Operates in tw
 ## Tests
 
 ```
-341 tests  |  0 failures  |  ~20s
+368 tests  |  0 failures  |  ~25s
 ```
 
 | Suite | Tests | Coverage |
@@ -485,6 +576,7 @@ Data bridge between Pantheon and Ares v3.2 (pentesting platform). Operates in tw
 | `tests/unit/test_war_room.py` | 29 | War Room, watchdog, JWT, feedback |
 | `tests/unit/test_purple_bridge.py` | 28 | Purple Bridge webhook, Pydantic, deduplication |
 | `tests/unit/test_ares_bridge.py` | 34 | AresBridgeWorker, feature vector, kill switch |
+| `tests/unit/test_improvements.py` | 27 | Pipeline, OllamaLLM, ProfileStore, CB, rate limit, metrics |
 | `tests/adversarial/` | 21 | 6 adversarial attack vectors |
 
 Adversarial vectors covered:

@@ -19,13 +19,16 @@ Autenticación: Bearer JWT en todos los endpoints excepto /health.
 
 from __future__ import annotations
 
+import collections
 import hmac
 import json
 import os
+import threading
+import time
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from pantheon.acme.feedback_auth import (
@@ -34,6 +37,8 @@ from pantheon.acme.feedback_auth import (
     decode_operator_token,
 )
 from pantheon.core.config import settings
+from pantheon.core.metrics import KILLSWITCH_TRIGGERED, RATE_LIMITED_REQUESTS
+from pantheon.core.pipeline import get_pipeline
 from pantheon.core.purple_bridge import (
     PurpleBridgeError,
     get_escalated,
@@ -45,6 +50,50 @@ app = FastAPI(
     description="Threat Hunting Autónomo con Memoria Episódica",
     version="2.1.0",
 )
+
+
+# ── Rate Limiting Middleware ──────────────────────────────────────────────────
+
+class _RateLimiter:
+    """Token bucket por IP: max `limit` requests por ventana de 60 segundos."""
+
+    def __init__(self, limit: int = settings.api_rate_limit) -> None:
+        self._limit  = limit
+        self._lock   = threading.Lock()
+        self._buckets: dict[str, collections.deque] = {}
+
+    def is_allowed(self, ip: str) -> bool:
+        now = time.monotonic()
+        window = 60.0
+        with self._lock:
+            if ip not in self._buckets:
+                self._buckets[ip] = collections.deque()
+            bucket = self._buckets[ip]
+            # descartar timestamps fuera de la ventana
+            while bucket and now - bucket[0] > window:
+                bucket.popleft()
+            if len(bucket) >= self._limit:
+                return False
+            bucket.append(now)
+            return True
+
+
+_rate_limiter = _RateLimiter()
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host if request.client else "unknown"
+    # Eximir /health y /metrics del rate limiting
+    if request.url.path in ("/health", "/metrics"):
+        return await call_next(request)
+    if not _rate_limiter.is_allowed(client_ip):
+        RATE_LIMITED_REQUESTS.inc()
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"detail": "Rate limit excedido. Máximo de peticiones por minuto alcanzado."},
+        )
+    return await call_next(request)
 
 
 # ── Modelos de request ────────────────────────────────────────────────────────
@@ -98,14 +147,15 @@ def ingest_event(
     """
     Ingestar un evento de red.
 
-    El evento pasa por Input Guard → si está limpio, Centinela lo evalúa
-    y lo enruta (Hermes o triaje humano).
+    Pipeline: InputGuard → Centinela → Hermes (si CCI ≥ umbral) → AcmeRanker.
     """
-    return {
-        "accepted": True,
-        "source_ip": event.source_ip,
-        "message": "Evento recibido y encolado para procesamiento",
-    }
+    result = get_pipeline().process_event(
+        features=event.features,
+        source_ip=event.source_ip,
+        log_text=event.log_text or "",
+        operator_id=operator_id,
+    )
+    return result.to_dict()
 
 
 @app.get("/hypotheses")
@@ -114,10 +164,11 @@ def get_hypotheses(
     limit: int = 10,
 ) -> dict:
     """Devuelve las hipótesis rankeadas más recientes para el operador."""
+    hypotheses = get_pipeline().get_hypotheses(operator_id, limit=limit)
     return {
         "operator_id": operator_id,
-        "hypotheses": [],
-        "message": "Sin hipótesis pendientes",
+        "count": len(hypotheses),
+        "hypotheses": hypotheses,
     }
 
 
@@ -179,6 +230,12 @@ def submit_feedback(
             status.HTTP_403_FORBIDDEN,
             "Firma de feedback inválida — feedback rechazado",
         )
+    # Incorporar al perfil IPCA del operador a través del ranker del pipeline
+    from pantheon.acme.ranker import FeedbackRejected
+    try:
+        get_pipeline()._ranker.accept_feedback(signed)
+    except FeedbackRejected as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     return {"accepted": True, "hypothesis_id": feedback.hypothesis_id}
 
 
@@ -233,8 +290,19 @@ def trigger_killswitch(
     operator_id: str = Depends(_get_operator),
 ) -> dict:
     """Activa el Kill Switch de Pantheon (aborta todas las operaciones activas)."""
+    KILLSWITCH_TRIGGERED.labels(source="operator").inc()
     return {
         "triggered": True,
         "reason": request.reason,
         "operator_id": operator_id,
     }
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> PlainTextResponse:
+    """Expone métricas Prometheus en formato text/plain."""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    return PlainTextResponse(
+        content=generate_latest().decode("utf-8"),
+        media_type=CONTENT_TYPE_LATEST,
+    )

@@ -55,7 +55,12 @@ La mayoría de las herramientas de seguridad automatizan las acciones de forma c
 | Agente de investigación CRAG (Hermes) | ✅ Completo |
 | Interfaz de operador con watchdog (War Room) | ✅ Completo |
 | Integración bidireccional con Ares v3.2 (Purple Bridge) | ✅ Completo |
-| Suite de tests (341 tests, 0 fallos) | ✅ Completo |
+| Pipeline end-to-end (PantheonPipeline singleton) | ✅ Completo |
+| LLM local con Ollama (Hermes fallback) | ✅ Completo |
+| Persistencia PostgreSQL de perfiles de operador | ✅ Completo |
+| Métricas Prometheus (`/metrics`) | ✅ Completo |
+| Rate limiting por IP en la API REST | ✅ Completo |
+| Suite de tests (368 tests, 0 fallos) | ✅ Completo |
 
 ---
 

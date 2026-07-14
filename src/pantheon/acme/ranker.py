@@ -43,10 +43,20 @@ class AcmeRanker:
         stage1: Optional[AcmeStage1] = None,
         operator_profiles: Optional[dict[str, OperatorProfile]] = None,
         jwt_secret: Optional[str] = None,
+        profile_store=None,
     ) -> None:
         self._stage1   = stage1 or AcmeStage1()
         self._profiles = operator_profiles or {}
         self._jwt_secret = jwt_secret or settings.pantheon_jwt_secret
+        # ProfileStore opcional (PostgreSQL); None = solo en memoria
+        if profile_store is None:
+            try:
+                from pantheon.core.profile_store import ProfileStore
+                self._store = ProfileStore()
+            except Exception:
+                self._store = None
+        else:
+            self._store = profile_store
 
     def rank(
         self,
@@ -113,11 +123,21 @@ class AcmeRanker:
         try:
             vec = FeedbackVector.from_dict(signed.payload)
             profile.update(vec, force=force)
+            # Persistir en PostgreSQL si está disponible
+            if self._store is not None:
+                self._store.save(signed.operator_id, profile)
+            from pantheon.core.metrics import FEEDBACK_ACCEPTED
+            FEEDBACK_ACCEPTED.labels(operator_id=signed.operator_id).inc()
         except OutlierFeedback as exc:
             raise FeedbackRejected(str(exc)) from exc
 
     def get_or_create_profile(self, operator_id: str) -> OperatorProfile:
-        """Devuelve el perfil del operador, creándolo si no existe."""
+        """
+        Devuelve el perfil del operador.
+
+        Si no está en memoria, intenta cargarlo desde PostgreSQL antes de crear uno nuevo.
+        """
         if operator_id not in self._profiles:
-            self._profiles[operator_id] = OperatorProfile(operator_id=operator_id)
+            loaded = self._store.load(operator_id) if self._store else None
+            self._profiles[operator_id] = loaded or OperatorProfile(operator_id=operator_id)
         return self._profiles[operator_id]
