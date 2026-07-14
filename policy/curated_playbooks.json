@@ -1,0 +1,46 @@
+{
+  "_comment": "Allowlist de playbooks curados. Solo los hashes aquí registrados pueden ser ejecutados por Muralla.",
+  "version": "1.0",
+  "playbooks": [
+    {
+      "id": "pb-isolate-host-v1",
+      "name": "Isolate Host from Network",
+      "description": "Desconecta un host del segmento de red en el entorno simulado.",
+      "hash_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "action": "isolate_host",
+      "parameters_schema": {
+        "target_ip": {"type": "string", "pattern": "^[0-9.]+$"},
+        "duration_secs": {"type": "integer", "minimum": 60, "maximum": 3600}
+      },
+      "emergency": false,
+      "requires_approval": true
+    },
+    {
+      "id": "pb-block-ip-v1",
+      "name": "Block IP at Perimeter",
+      "description": "Añade una regla de bloqueo para una IP en el firewall simulado.",
+      "hash_sha256": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+      "action": "block_ip",
+      "parameters_schema": {
+        "target_ip": {"type": "string", "pattern": "^[0-9.]+$"},
+        "direction": {"type": "string", "enum": ["inbound", "outbound", "both"]},
+        "duration_secs": {"type": "integer", "minimum": 60, "maximum": 86400}
+      },
+      "emergency": false,
+      "requires_approval": true
+    },
+    {
+      "id": "pb-emergency-isolate-v1",
+      "name": "Emergency Host Isolation (Pre-authorized)",
+      "description": "Aislamiento mínimo de emergencia activado por Watchdog cuando CCI es crítico y el analista no actúa.",
+      "hash_sha256": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+      "action": "isolate_host",
+      "parameters_schema": {
+        "target_ip": {"type": "string", "pattern": "^[0-9.]+$"},
+        "duration_secs": {"type": "integer", "minimum": 300, "maximum": 1800}
+      },
+      "emergency": true,
+      "requires_approval": false
+    }
+  ]
+}

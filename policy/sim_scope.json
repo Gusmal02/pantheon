@@ -1,0 +1,26 @@
+{
+  "_comment": "Scope del entorno simulado — Muralla rechaza acciones fuera de estos rangos.",
+  "version": "1.0",
+  "allowed_networks": [
+    "192.168.100.0/24",
+    "10.0.100.0/24",
+    "172.16.100.0/24"
+  ],
+  "excluded_ips": [
+    "192.168.100.1",
+    "10.0.100.1"
+  ],
+  "allowed_port_ranges": [
+    {"from": 1, "to": 1024},
+    {"from": 8000, "to": 9000}
+  ],
+  "max_isolation_duration_secs": 3600,
+  "allowed_playbook_actions": [
+    "isolate_host",
+    "block_ip",
+    "kill_process",
+    "capture_memory",
+    "collect_logs",
+    "quarantine_file"
+  ]
+}

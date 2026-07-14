@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TTPTag(str, Enum):
@@ -48,5 +48,4 @@ class Episode(BaseModel):
         default=None, description="thumbs up/down + nota del analista, si existe"
     )
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
