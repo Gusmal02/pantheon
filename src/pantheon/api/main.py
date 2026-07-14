@@ -2,12 +2,14 @@
 FastAPI — API REST de Pantheon v2.1.
 
 Endpoints:
-  POST /events          — ingestar evento de red (Input Guard → Centinela)
-  GET  /hypotheses      — hipótesis rankeadas para el operador actual
-  POST /approve/{id}    — aprobar contención
-  POST /deny/{id}       — denegar contención
-  GET  /pending         — solicitudes de aprobación pendientes
-  POST /feedback        — feedback dimensional firmado (JWT)
+  POST /events              — ingestar evento de red (Input Guard → Centinela)
+  GET  /hypotheses          — hipótesis rankeadas para el operador actual
+  POST /approve/{id}        — aprobar contención
+  POST /deny/{id}           — denegar contención
+  GET  /pending             — solicitudes de aprobación pendientes
+  POST /feedback            — feedback dimensional firmado (JWT)
+  GET  /purple/escalated    — hipótesis escaladas desde Ares (Purple Team)
+  POST /purple/escalated    — Ares publica un escalado a Pantheon (webhook)
   GET  /audit           — últimas N entradas del Audit Trail
   POST /killswitch      — activar Kill Switch
   GET  /health          — healthcheck
@@ -32,6 +34,11 @@ from pantheon.acme.feedback_auth import (
     decode_operator_token,
 )
 from pantheon.core.config import settings
+from pantheon.core.purple_bridge import (
+    PurpleBridgeError,
+    get_escalated,
+    receive_escalated,
+)
 
 app = FastAPI(
     title="Pantheon v2.1",
@@ -185,6 +192,38 @@ def get_audit(
         "entries": [],
         "limit": limit,
         "message": "Audit Trail disponible tras inicializar BD (uv run python scripts/init_db.py)",
+    }
+
+
+@app.get("/purple/escalated")
+def get_purple_escalated(
+    operator_id: str = Depends(_get_operator),
+    limit: int = 50,
+    only_unprocessed: bool = False,
+) -> dict:
+    """Devuelve hipótesis escaladas desde Ares v3.2 (Purple Team bridge)."""
+    escalated = get_escalated(limit=limit, only_unprocessed=only_unprocessed)
+    return {"escalated": escalated, "count": len(escalated)}
+
+
+@app.post("/purple/escalated", status_code=status.HTTP_201_CREATED)
+def post_purple_escalated(
+    payload: dict,
+    operator_id: str = Depends(_get_operator),
+) -> dict:
+    """
+    Recibe un escalado de Ares v3.2.
+
+    Valida el payload con Pydantic + allowlist de hosts antes de almacenar.
+    """
+    try:
+        record = receive_escalated(payload)
+    except PurpleBridgeError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    return {
+        "accepted": True,
+        "content_hash": record.content_hash,
+        "hypothesis_id": record.hypothesis.hypothesis_id,
     }
 
 
