@@ -64,6 +64,11 @@ class ATTCKGraph:
     Args:
         relations — lista de (source_technique_id, target_technique_id)
         tactic_map — dict {technique_id: tactic_name}
+
+    Pesos de aristas:
+        Todas las aristas inician con weight=1.0 (uniform).
+        update_cooccurrence() reduce el peso de pares que co-ocurren en episodios
+        reales: weight = 1 / count. Menor peso = camino más probable para Dijkstra.
     """
 
     def __init__(
@@ -73,8 +78,9 @@ class ATTCKGraph:
     ) -> None:
         self._graph = nx.DiGraph()
         self._tactic_map = dict(tactic_map)
+        self._cooccurrence: dict[tuple[str, str], int] = {}
         for src, tgt in relations:
-            self._graph.add_edge(src, tgt)
+            self._graph.add_edge(src, tgt, weight=1.0)
         # añadir tácticas como atributo de nodo
         for node in self._graph.nodes:
             self._graph.nodes[node]["tactic"] = self._tactic_map.get(node, "unknown")
@@ -146,6 +152,94 @@ class ATTCKGraph:
     def get_tactic(self, technique_id: str) -> str:
         """Devuelve la táctica MITRE de una técnica."""
         return self._tactic_map.get(technique_id, "unknown")
+
+    # ── Co-ocurrencia y Dijkstra (base para A*) ───────────────────────────────
+
+    def update_cooccurrence(self, technique_sequence: list[str]) -> None:
+        """Actualiza pesos de aristas a partir de una secuencia de técnicas observadas.
+
+        Por cada par consecutivo (src, tgt) en la secuencia:
+          - Incrementa el contador de co-ocurrencia.
+          - Recalcula weight = 1 / count (menor = más probable para Dijkstra).
+          - Si la arista no existe en el grafo base, la crea (nueva evidencia empírica).
+
+        El mínimo weight posible es 0.1 para evitar colapso numérico.
+        """
+        for i in range(len(technique_sequence) - 1):
+            src, tgt = technique_sequence[i], technique_sequence[i + 1]
+            key = (src, tgt)
+            self._cooccurrence[key] = self._cooccurrence.get(key, 0) + 1
+            weight = max(0.1, 1.0 / (1 + self._cooccurrence[key]))
+            if self._graph.has_edge(src, tgt):
+                self._graph[src][tgt]["weight"] = weight
+            else:
+                self._graph.add_edge(src, tgt, weight=weight)
+                # propagar tactic_map a nodos nuevos que lleguen por evidencia empírica
+                for node in (src, tgt):
+                    if node not in self._graph.nodes or "tactic" not in self._graph.nodes[node]:
+                        self._graph.nodes[node]["tactic"] = self._tactic_map.get(node, "unknown")
+
+    def shortest_path_to_tactic(
+        self,
+        start_technique: str,
+        target_tactic: str,
+        max_results: int = 5,
+    ) -> list[str]:
+        """Dijkstra desde start_technique hacia el nodo con target_tactic más cercano.
+
+        Devuelve la secuencia de técnicas intermedias (excluye start_technique).
+        Retorna lista vacía si no hay camino o la técnica inicial no existe.
+
+        Esto es A* con h(n)=0. Cuando Ornith tenga episodios reales, la heurística
+        se añade aquí sin cambiar la interfaz.
+        """
+        if start_technique not in self._graph:
+            return []
+
+        goal_nodes = [
+            n for n in self._graph.nodes
+            if self._graph.nodes[n].get("tactic") == target_tactic
+            and n != start_technique
+        ]
+        if not goal_nodes:
+            return []
+
+        best_path: list[str] = []
+        best_cost = float("inf")
+        for goal in goal_nodes:
+            try:
+                cost = nx.dijkstra_path_length(
+                    self._graph, start_technique, goal, weight="weight"
+                )
+                if cost < best_cost:
+                    best_cost = cost
+                    best_path = nx.dijkstra_path(
+                        self._graph, start_technique, goal, weight="weight"
+                    )
+            except nx.NetworkXNoPath:
+                continue
+
+        return best_path[1 : max_results + 1]  # excluir nodo inicial
+
+    def load_cooccurrence_from_episodes(self, episodes: list) -> int:
+        """Carga pesos de co-ocurrencia desde una lista de episodios de Ornith.
+
+        Cada episodio debe tener un campo technique_sequence: list[str].
+        Retorna el número de secuencias procesadas (episodios con >= 2 técnicas).
+        """
+        processed = 0
+        for ep in episodes:
+            seq = getattr(ep, "technique_sequence", [])
+            if len(seq) >= 2:
+                self.update_cooccurrence(seq)
+                processed += 1
+        return processed
+
+    def cooccurrence_weight(self, src: str, tgt: str) -> float | None:
+        """Devuelve el peso actual de la arista (src→tgt), o None si no existe."""
+        if self._graph.has_edge(src, tgt):
+            return self._graph[src][tgt]["weight"]
+        return None
 
     @property
     def technique_ids(self) -> list[str]:

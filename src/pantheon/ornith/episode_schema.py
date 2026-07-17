@@ -30,7 +30,29 @@ class Episode(BaseModel):
         ..., description="Resumen de la anomalía detectada por Centinela + ventana temporal"
     )
     campaign_id: str | None = Field(
-        default=None, description="ID de clúster HDBSCAN, si la anomalía pertenece a una campaña"
+        default=None,
+        description="ID de run de Ares o clúster HDBSCAN que agrupa eventos de la misma campaña",
+    )
+
+    # ── Campos de sesión (granulado de campaña) ───────────────────────────────
+    source_ip: str | None = Field(
+        default=None,
+        description="IP origen del evento que inició la investigación",
+    )
+    window_start: datetime | None = Field(
+        default=None,
+        description="Inicio de la ventana temporal del episodio (primer evento de la campaña)",
+    )
+    window_end: datetime | None = Field(
+        default=None,
+        description="Fin de la ventana temporal del episodio (último evento de la campaña)",
+    )
+    technique_sequence: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Secuencia ordenada de IDs de técnicas ATT&CK observadas en la campaña "
+            "(ej. ['T1046', 'T1021', 'T1135']). Usada para la heurística de co-ocurrencia en A*."
+        ),
     )
 
     hypothesis: str = Field(..., description="Hipótesis de investigación generada o documentada")
@@ -38,7 +60,10 @@ class Episode(BaseModel):
         default_factory=list, description="IDs de documentos/episodios usados como evidencia"
     )
 
-    ttp_tags: list[TTPTag] = Field(default_factory=list)
+    ttp_tags: list[TTPTag] = Field(
+        default_factory=list,
+        description="Tácticas MITRE ATT&CK (nivel táctico, no técnico). Ver technique_sequence para IDs de técnicas.",
+    )
     iocs_extraidos: list[str] = Field(
         default_factory=list, description="IPs, hashes, dominios, CVE-IDs detectados (NER/regex)"
     )
@@ -49,3 +74,10 @@ class Episode(BaseModel):
     )
 
     model_config = ConfigDict(use_enum_values=True)
+
+    @property
+    def window_duration_seconds(self) -> float | None:
+        """Duración de la ventana temporal en segundos, o None si no está definida."""
+        if self.window_start and self.window_end:
+            return (self.window_end - self.window_start).total_seconds()
+        return None

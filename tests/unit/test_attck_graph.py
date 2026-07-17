@@ -70,3 +70,105 @@ class TestATTCKGraph:
         path.write_text(json.dumps(data))
         g = ATTCKGraph.from_json(path)
         assert "T1002" in g.get_related_techniques("T1001")
+
+    # ── Co-ocurrencia y Dijkstra ──────────────────────────────────────────────
+
+    def test_edges_have_default_weight_1(self):
+        g = self._graph()
+        w = g.cooccurrence_weight("T1190", "T1059")
+        assert w == pytest.approx(1.0)
+
+    def test_update_cooccurrence_reduces_weight(self):
+        g = self._graph()
+        g.update_cooccurrence(["T1190", "T1059"])
+        w = g.cooccurrence_weight("T1190", "T1059")
+        assert w < 1.0
+
+    def test_update_cooccurrence_twice_reduces_further(self):
+        g = self._graph()
+        g.update_cooccurrence(["T1190", "T1059"])
+        w1 = g.cooccurrence_weight("T1190", "T1059")
+        g.update_cooccurrence(["T1190", "T1059"])
+        w2 = g.cooccurrence_weight("T1190", "T1059")
+        assert w2 < w1
+
+    def test_weight_minimum_is_0_1(self):
+        g = self._graph()
+        for _ in range(100):
+            g.update_cooccurrence(["T1190", "T1059"])
+        w = g.cooccurrence_weight("T1190", "T1059")
+        assert w >= 0.1
+
+    def test_update_cooccurrence_creates_new_edge(self):
+        g = self._graph()
+        assert g.cooccurrence_weight("T1486", "T1059") is None
+        g.update_cooccurrence(["T1486", "T1059"])
+        assert g.cooccurrence_weight("T1486", "T1059") is not None
+
+    def test_cooccurrence_weight_none_for_nonexistent(self):
+        g = self._graph()
+        assert g.cooccurrence_weight("T9999", "T8888") is None
+
+    def test_shortest_path_to_tactic_returns_list(self):
+        g = self._graph()
+        path = g.shortest_path_to_tactic("T1190", "exfiltration")
+        assert isinstance(path, list)
+
+    def test_shortest_path_reaches_target_tactic(self):
+        g = self._graph()
+        path = g.shortest_path_to_tactic("T1190", "exfiltration")
+        assert len(path) > 0
+        # el último nodo del camino debe tener táctica exfiltration
+        assert g.get_tactic(path[-1]) == "exfiltration"
+
+    def test_shortest_path_unknown_technique_returns_empty(self):
+        g = self._graph()
+        assert g.shortest_path_to_tactic("T9999", "exfiltration") == []
+
+    def test_shortest_path_unknown_tactic_returns_empty(self):
+        g = self._graph()
+        assert g.shortest_path_to_tactic("T1190", "nonexistent-tactic") == []
+
+    def test_shortest_path_max_results_respected(self):
+        g = self._graph()
+        path = g.shortest_path_to_tactic("T1190", "exfiltration", max_results=2)
+        assert len(path) <= 2
+
+    def test_cooccurrence_shifts_path(self):
+        g = self._graph()
+        path_before = g.shortest_path_to_tactic("T1059", "exfiltration")
+        # Reforzar el camino T1059 → T1105 → T1071 → T1041 con co-ocurrencias
+        for _ in range(5):
+            g.update_cooccurrence(["T1059", "T1105", "T1071", "T1041"])
+        path_after = g.shortest_path_to_tactic("T1059", "exfiltration")
+        # El camino reforzado debe incluir T1105 (primer paso preferido)
+        assert len(path_after) > 0
+        assert path_after[0] == "T1105"
+
+    def test_load_cooccurrence_from_episodes(self):
+        from pantheon.ornith.episode_schema import Episode
+        from datetime import datetime, timezone
+        import uuid
+
+        g = self._graph()
+
+        def make_ep(seq):
+            return Episode(
+                id=str(uuid.uuid4()),
+                timestamp=datetime.now(timezone.utc),
+                anomaly_signature="test",
+                hypothesis="test hypothesis",
+                technique_sequence=seq,
+            )
+
+        episodes = [
+            make_ep(["T1190", "T1059", "T1105"]),
+            make_ep(["T1190", "T1059", "T1105"]),
+            make_ep(["T1566", "T1204"]),
+            make_ep(["T1059"]),  # solo 1 técnica — no debe contar
+        ]
+
+        processed = g.load_cooccurrence_from_episodes(episodes)
+        assert processed == 3  # el de 1 técnica no cuenta
+        # T1190→T1059 fue visto 2 veces — peso debe ser < 1
+        assert g.cooccurrence_weight("T1190", "T1059") < 1.0

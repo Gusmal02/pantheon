@@ -1,0 +1,823 @@
+<!doctype html>
+<title>Pantheon v2.1 — War Room</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* ── Tokens ──────────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0a0d12;
+  --surface:   #111620;
+  --surface2:  #161d2b;
+  --border:    #1d2535;
+  --border2:   #253045;
+  --text:      #c8d4e8;
+  --dim:       #4a5a72;
+  --accent:    #00e5ff;
+  --accent-d:  #007a8c;
+  --ok:        #22c55e;
+  --warn:      #f0b429;
+  --crit:      #ff4444;
+  --purple:    #a855f7;
+  --mono:      "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* Top bar */
+#topbar {
+  display: flex; align-items: center; gap: 16px; padding: 0 20px;
+  height: 48px; background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; position: relative; z-index: 10;
+}
+#system-name {
+  font-size: 14px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--accent); flex-shrink: 0;
+}
+.topbar-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+#status-pill {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase; flex-shrink: 0;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 6px var(--ok);
+  animation: pulse-ok 2s ease-in-out infinite;
+}
+.status-dot.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); animation: pulse-warn 1s ease-in-out infinite; }
+.status-dot.crit { background: var(--crit); box-shadow: 0 0 6px var(--crit); animation: pulse-crit .5s ease-in-out infinite; }
+@keyframes pulse-ok   { 0%,100%{opacity:1} 50%{opacity:.5} }
+@keyframes pulse-warn { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes pulse-crit { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+#counters { display: flex; gap: 0; flex: 1; justify-content: center; }
+.counter {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 18px; border-right: 1px solid var(--border);
+  min-width: 90px;
+}
+.counter:first-child { border-left: 1px solid var(--border); }
+.counter-val {
+  font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1.2; color: var(--text);
+}
+.counter-val.red { color: var(--crit); }
+.counter-val.yellow { color: var(--warn); }
+.counter-val.cyan { color: var(--accent); }
+.counter-val.purple { color: var(--purple); }
+.counter-label { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+
+#topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#last-update { font-size: 10px; color: var(--dim); }
+
+/* Token overlay */
+#token-overlay {
+  position: fixed; inset: 0; background: rgba(10,13,18,.96);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+#token-box {
+  background: var(--surface); border: 1px solid var(--border2);
+  padding: 32px 40px; width: 560px; max-width: 90vw;
+}
+#token-box h2 { font-size: 16px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 20px; }
+#token-box p { color: var(--dim); font-size: 12px; margin-bottom: 16px; }
+#token-input {
+  width: 100%; background: var(--bg); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+  padding: 10px 12px; outline: none;
+}
+#token-input:focus { border-color: var(--accent); }
+#token-btn {
+  margin-top: 12px; padding: 10px 24px; background: var(--accent);
+  color: #000; font-family: var(--mono); font-size: 12px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; border: none; cursor: pointer;
+}
+#token-btn:hover { background: #33eeff; }
+#token-error { margin-top: 10px; color: var(--crit); font-size: 11px; min-height: 16px; }
+
+/* Main 3-column grid */
+#main {
+  display: grid;
+  grid-template-columns: 1fr 260px 1fr;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Panel base */
+.panel {
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.panel:last-child { border-right: none; }
+.panel-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+}
+.panel-title { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.panel-badge {
+  margin-left: auto; font-size: 10px; font-variant-numeric: tabular-nums;
+  background: var(--border); color: var(--dim); padding: 1px 7px; border-radius: 20px;
+}
+.panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.panel-body::-webkit-scrollbar { width: 4px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+.panel-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── Center panel — CCI Radar ─────────────────────────────────────────────── */
+#center-panel { background: var(--bg); border-right: 1px solid var(--border); }
+#radar-wrap {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 16px; padding: 16px 0;
+}
+#cci-canvas { display: block; }
+#threat-level {
+  text-align: center; font-size: 11px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--dim);
+}
+#threat-label {
+  font-size: 22px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; margin-top: 4px;
+}
+#cci-value { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#cci-unit { font-size: 11px; color: var(--dim); margin-top: 2px; }
+
+/* Sparkline row below radar */
+#sparkline-row {
+  display: flex; gap: 0; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.spark-cell {
+  flex: 1; padding: 8px 12px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center;
+}
+.spark-cell:last-child { border-right: none; }
+.spark-label { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); margin-bottom: 4px; }
+.spark-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Left panel — Event Feed ──────────────────────────────────────────────── */
+#feed-table { width: 100%; border-collapse: collapse; }
+#feed-table thead th {
+  padding: 6px 12px; text-align: left; font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+  border-bottom: 1px solid var(--border); background: var(--surface);
+  position: sticky; top: 0;
+}
+#feed-table tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+#feed-table tbody tr:hover { background: var(--surface2); }
+#feed-table tbody td { padding: 6px 12px; font-size: 12px; }
+.feed-new { animation: flash-row .6s ease; }
+@keyframes flash-row { 0%{background:rgba(0,229,255,.12)} 100%{background:transparent} }
+.cci-cell { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* Attack type chips */
+.chip {
+  display: inline-block; padding: 1px 8px; border-radius: 3px;
+  font-size: 10px; letter-spacing: .06em; font-weight: 700; text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip-injection    { background: rgba(255,68,68,.18);  color: #ff8080; border: 1px solid rgba(255,68,68,.3); }
+.chip-quarantine   { background: rgba(240,180,41,.15); color: #f0b429; border: 1px solid rgba(240,180,41,.3); }
+.chip-critical     { background: rgba(255,68,68,.22);  color: var(--crit); border: 1px solid rgba(255,68,68,.4); }
+.chip-moderate     { background: rgba(240,180,41,.15); color: var(--warn); border: 1px solid rgba(240,180,41,.3); }
+.chip-normal       { background: rgba(34,197,94,.12);  color: #4ade80; border: 1px solid rgba(34,197,94,.25); }
+.chip-ares         { background: rgba(168,85,247,.18); color: #c084fc; border: 1px solid rgba(168,85,247,.35); }
+
+.verdict-block     { color: var(--crit); font-weight: 700; }
+.verdict-quarantine{ color: var(--warn); font-weight: 700; }
+.verdict-pass      { color: var(--dim); }
+
+/* ── Right panel — split into hypotheses + escalations ───────────────────── */
+#right-panel { display: flex; flex-direction: column; }
+#hyp-section { flex: 1; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); min-height: 0; }
+#esc-section  { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+.hyp-item {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.hyp-item:hover { background: var(--surface2); }
+.hyp-meta { display: flex; align-items: center; gap: 8px; }
+.hyp-rank { font-size: 9px; color: var(--dim); }
+.hyp-score { font-size: 11px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.hyp-text { font-size: 12px; color: var(--text); line-height: 1.4; }
+.hyp-ip { font-size: 10px; color: var(--dim); }
+
+.esc-item {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.esc-item:hover { background: var(--surface2); }
+.esc-header { display: flex; align-items: center; gap: 8px; }
+.esc-severity { font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.sev-critical { color: var(--crit); }
+.sev-high     { color: var(--warn); }
+.sev-medium   { color: #60a5fa; }
+.esc-ip { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
+.esc-ttps { font-size: 10px; color: var(--dim); }
+.esc-narrative { font-size: 11px; color: var(--dim); line-height: 1.4; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Empty states */
+.empty-state {
+  padding: 32px 16px; text-align: center; color: var(--dim);
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+}
+
+/* ── Bottom — Attack History ──────────────────────────────────────────────── */
+#bottom {
+  flex-shrink: 0; height: 200px; display: flex; flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+#bottom-header {
+  display: flex; align-items: center; gap: 12px; padding: 8px 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#bottom-title { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+#filter-chips { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
+#filter-chips::-webkit-scrollbar { display: none; }
+.filter-chip {
+  padding: 3px 10px; border-radius: 3px; font-size: 10px; letter-spacing: .06em;
+  text-transform: uppercase; cursor: pointer; border: 1px solid var(--border2);
+  color: var(--dim); background: transparent; font-family: var(--mono);
+  transition: all .15s; white-space: nowrap; flex-shrink: 0;
+}
+.filter-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,.08); }
+.filter-chip:hover { border-color: var(--border2); color: var(--text); }
+#bottom-count { margin-left: auto; font-size: 10px; color: var(--dim); flex-shrink: 0; }
+
+#history-table-wrap { flex: 1; overflow-y: auto; overflow-x: auto; }
+#history-table-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+#history-table-wrap::-webkit-scrollbar-thumb { background: var(--border2); }
+#history-table { width: 100%; border-collapse: collapse; }
+#history-table thead th {
+  padding: 5px 12px; text-align: left; font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+  background: var(--bg); position: sticky; top: 0; white-space: nowrap;
+}
+#history-table tbody tr { border-bottom: 1px solid rgba(29,37,53,.7); }
+#history-table tbody tr:hover { background: var(--surface); }
+#history-table tbody td { padding: 4px 12px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── Scanline overlay (subtle ops center feel) ────────────────────────────── */
+body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 999;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.04) 2px, rgba(0,0,0,.04) 4px);
+}
+</style>
+
+<div id="app">
+
+  <!-- Token Overlay -->
+  <div id="token-overlay">
+    <div id="token-box">
+      <h2>Pantheon War Room</h2>
+      <p>Ingresa el Bearer JWT del operador para conectar al sistema de monitoreo en tiempo real.</p>
+      <input id="token-input" type="text" placeholder="eyJhbGci..." value="__PREFILL_TOKEN__" autocomplete="off" spellcheck="false">
+      <br>
+      <button id="token-btn" onclick="initWithToken()">Conectar</button>
+      <div id="token-error"></div>
+    </div>
+  </div>
+
+  <!-- Top Bar -->
+  <div id="topbar">
+    <span id="system-name">⬡ Pantheon v2.1</span>
+    <div class="topbar-sep"></div>
+    <div id="status-pill">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">En línea</span>
+    </div>
+    <div class="topbar-sep"></div>
+    <div id="counters">
+      <div class="counter"><span class="counter-val red" id="cnt-blocked">—</span><span class="counter-label">Bloqueados</span></div>
+      <div class="counter"><span class="counter-val" id="cnt-passed">—</span><span class="counter-label">Pasaron</span></div>
+      <div class="counter"><span class="counter-val cyan" id="cnt-escalated">—</span><span class="counter-label">Escalados</span></div>
+      <div class="counter"><span class="counter-val yellow" id="cnt-hypotheses">—</span><span class="counter-label">Hipótesis</span></div>
+      <div class="counter"><span class="counter-val" id="cnt-cci-avg">—</span><span class="counter-label">CCI Prom</span></div>
+    </div>
+    <div id="topbar-right">
+      <span id="last-update">—</span>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+
+    <!-- LEFT — Event Feed -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Feed de eventos</span>
+        <span class="panel-badge" id="feed-badge">0</span>
+      </div>
+      <div class="panel-body">
+        <table id="feed-table">
+          <thead><tr>
+            <th>Tiempo</th><th>IP Origen</th><th>CCI</th><th>Guard</th><th>Tipo</th><th>Hyp</th>
+          </tr></thead>
+          <tbody id="feed-body">
+            <tr><td colspan="6" class="empty-state">Sin eventos — conecta para monitorear</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CENTER — CCI Radar -->
+    <div class="panel" id="center-panel">
+      <div class="panel-header">
+        <span class="panel-title">Nivel de amenaza</span>
+      </div>
+      <div id="radar-wrap" class="panel-body">
+        <canvas id="cci-canvas" width="200" height="200"></canvas>
+        <div>
+          <div id="threat-level">Índice CCI</div>
+          <div id="cci-value" style="text-align:center">—</div>
+          <div id="cci-unit" style="text-align:center">CENTINELA</div>
+        </div>
+        <div id="threat-label">INICIALIZANDO</div>
+      </div>
+      <div id="sparkline-row">
+        <div class="spark-cell">
+          <div class="spark-label">Bloq/min</div>
+          <div class="spark-val" id="spark-rate" style="color:var(--crit)">—</div>
+        </div>
+        <div class="spark-cell">
+          <div class="spark-label">Rate limit</div>
+          <div class="spark-val" id="spark-rl" style="color:var(--warn)">—</div>
+        </div>
+        <div class="spark-cell">
+          <div class="spark-label">Iter Hermes</div>
+          <div class="spark-val" id="spark-hermes" style="color:var(--accent)">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — Hypotheses + Escalations -->
+    <div class="panel" id="right-panel">
+      <div id="hyp-section">
+        <div class="panel-header">
+          <span class="panel-title">Hipótesis Hermes</span>
+          <span class="panel-badge" id="hyp-badge">0</span>
+        </div>
+        <div class="panel-body" id="hyp-body">
+          <div class="empty-state">Sin hipótesis</div>
+        </div>
+      </div>
+      <div id="esc-section">
+        <div class="panel-header">
+          <span class="panel-title">Escalados Ares ↑</span>
+          <span class="panel-badge" id="esc-badge">0</span>
+        </div>
+        <div class="panel-body" id="esc-body">
+          <div class="empty-state">Sin escalados</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <!-- Bottom — Attack History -->
+  <div id="bottom">
+    <div id="bottom-header">
+      <span id="bottom-title">Historial de ataques</span>
+      <div id="filter-chips">
+        <button class="filter-chip active" data-filter="all">Todos</button>
+        <button class="filter-chip" data-filter="injection">Inyección</button>
+        <button class="filter-chip" data-filter="critical_anomaly">Crítico</button>
+        <button class="filter-chip" data-filter="moderate_anomaly">Moderado</button>
+        <button class="filter-chip" data-filter="quarantine">Cuarentena</button>
+        <button class="filter-chip" data-filter="ares_escalation">Ares</button>
+        <button class="filter-chip" data-filter="normal">Normal</button>
+      </div>
+      <span id="bottom-count">0 eventos</span>
+    </div>
+    <div id="history-table-wrap">
+      <table id="history-table">
+        <thead><tr>
+          <th>#</th><th>Timestamp</th><th>IP Origen</th><th>CCI</th>
+          <th>Guard</th><th>Tipo de ataque</th><th>Crítico</th><th>Hipótesis</th><th>Operador</th>
+        </tr></thead>
+        <tbody id="history-body">
+          <tr><td colspan="9" class="empty-state">Sin historial</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let TOKEN = '';
+let POLL_EVENTS_ID = null, POLL_METRICS_ID = null, POLL_HEALTH_ID = null;
+let POLL_HYPS_ID = null, POLL_ESC_ID = null;
+let allEvents = [];
+let currentFilter = 'all';
+let cciHistory = [];       // last 30 CCI values for sparkline
+let lastEventTs = 0;
+let pendingPulse = false;  // trigger radar ring pulse
+
+// CCI ring animation state
+let displayCci = 0;
+let targetCci  = 0;
+let animRafId  = null;
+let pulseAlpha = 0;
+
+const ATTACK_LABELS = {
+  injection:        'Inyección',
+  quarantine:       'Cuarentena',
+  critical_anomaly: 'Anomalía Crítica',
+  moderate_anomaly: 'Anomalía Moderada',
+  normal:           'Normal',
+  ares_escalation:  'Ares ↑',
+};
+
+const CHIP_CLASS = {
+  injection:        'chip chip-injection',
+  quarantine:       'chip chip-quarantine',
+  critical_anomaly: 'chip chip-critical',
+  moderate_anomaly: 'chip chip-moderate',
+  normal:           'chip chip-normal',
+  ares_escalation:  'chip chip-ares',
+};
+
+// ── Token flow ─────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const pre = document.getElementById('token-input').value.trim();
+  document.getElementById('token-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') initWithToken();
+  });
+  if (pre && pre.length > 20) {
+    TOKEN = pre;
+    startPolling();
+  }
+});
+
+async function initWithToken() {
+  const val = document.getElementById('token-input').value.trim();
+  if (!val) { document.getElementById('token-error').textContent = 'Ingresa un token JWT.'; return; }
+  // Quick health check
+  try {
+    const r = await fetch('/health');
+    if (!r.ok) throw new Error('health failed');
+  } catch {
+    document.getElementById('token-error').textContent = 'No se pudo conectar a Pantheon en /health.';
+    return;
+  }
+  TOKEN = val;
+  startPolling();
+}
+
+function startPolling() {
+  document.getElementById('token-overlay').style.display = 'none';
+  initRadar();
+  pollEvents();
+  pollMetrics();
+  pollHealth();
+  pollHypotheses();
+  pollEscalated();
+  POLL_EVENTS_ID  = setInterval(pollEvents,     2000);
+  POLL_METRICS_ID = setInterval(pollMetrics,    5000);
+  POLL_HEALTH_ID  = setInterval(pollHealth,    10000);
+  POLL_HYPS_ID    = setInterval(pollHypotheses, 5000);
+  POLL_ESC_ID     = setInterval(pollEscalated,  5000);
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────
+async function api(path) {
+  const r = await fetch(path, { headers: { Authorization: `Bearer ${TOKEN}` } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// ── Poll: events ───────────────────────────────────────────────────────────
+async function pollEvents() {
+  try {
+    const data = await api('/events/recent?limit=200');
+    const events = data.events || [];
+    const prevCount = allEvents.length;
+    allEvents = events;
+
+    // Detect new events for radar pulse
+    if (events.length > 0 && events[0].ts > lastEventTs) {
+      lastEventTs = events[0].ts;
+      pendingPulse = true;
+    }
+
+    // Update CCI target from recent events
+    if (events.length > 0) {
+      const recent = events.slice(0, 5);
+      const avgCci = recent.reduce((s, e) => s + (e.cci || 0), 0) / recent.length;
+      targetCci = avgCci;
+      cciHistory.push(avgCci);
+      if (cciHistory.length > 30) cciHistory.shift();
+    }
+
+    renderFeed(events.slice(0, 30), prevCount < allEvents.length);
+    renderHistory();
+    updateFeedBadge(events.length);
+    updateLastUpdate();
+  } catch (e) { /* silent */ }
+}
+
+// ── Poll: metrics ──────────────────────────────────────────────────────────
+async function pollMetrics() {
+  try {
+    const m = await api('/metrics/json');
+
+    const blocked = (m['pantheon_events_processed_total{verdict=block}'] || 0);
+    const passed  = (m['pantheon_events_processed_total{verdict=pass}']  || 0);
+    const total   = blocked + passed;
+
+    setText('cnt-blocked',    fmt(blocked));
+    setText('cnt-passed',     fmt(passed));
+    setText('cnt-escalated',  fmt(m['pantheon_purple_escalated_total'] || 0));
+    setText('cnt-hypotheses', fmt(m['pantheon_hypotheses_generated_total'] || 0));
+
+    // CCI average from histogram
+    const cciSum   = m['pantheon_cci_score_sum']   || 0;
+    const cciCount = m['pantheon_cci_score_count']  || 0;
+    const cciAvg   = cciCount > 0 ? cciSum / cciCount : 0;
+    setText('cnt-cci-avg', cciAvg.toFixed(3));
+
+    setText('spark-rl',     fmt(m['pantheon_rate_limited_requests_total'] || 0));
+
+    // Event types from ring buffer
+    const et = m['_event_types'] || {};
+    // Blocked rate approx
+    const inj = (et['injection'] || 0) + (et['quarantine'] || 0);
+    setText('spark-rate', fmt(inj));
+
+    // Hermes iterations
+    const hermesSum   = m['pantheon_hermes_iterations_total_sum']   || 0;
+    const hermesCount = m['pantheon_hermes_iterations_total_count'] || 0;
+    setText('spark-hermes', hermesCount > 0 ? (hermesSum / hermesCount).toFixed(1) : '—');
+
+  } catch (e) { /* silent */ }
+}
+
+// ── Poll: health ───────────────────────────────────────────────────────────
+async function pollHealth() {
+  try {
+    const r = await fetch('/health');
+    const dot  = document.getElementById('status-dot');
+    const text = document.getElementById('status-text');
+    if (r.ok) {
+      const now = Date.now() / 1000;
+      const recent = allEvents.filter(e => now - e.ts < 60).length;
+      if (recent > 0 || allEvents.length === 0) {
+        dot.className = 'status-dot';
+        text.textContent = 'En línea';
+      } else {
+        dot.className = 'status-dot warn';
+        text.textContent = 'Intermitente';
+      }
+    } else {
+      dot.className = 'status-dot crit';
+      text.textContent = 'Problemas';
+    }
+  } catch {
+    document.getElementById('status-dot').className = 'status-dot crit';
+    document.getElementById('status-text').textContent = 'Problemas';
+  }
+}
+
+// ── Poll: hypotheses ───────────────────────────────────────────────────────
+async function pollHypotheses() {
+  try {
+    const data = await api('/hypotheses?limit=8');
+    const hyps = data.hypotheses || [];
+    document.getElementById('hyp-badge').textContent = data.count || 0;
+    const body = document.getElementById('hyp-body');
+    if (!hyps.length) { body.innerHTML = '<div class="empty-state">Sin hipótesis aún</div>'; return; }
+    body.innerHTML = hyps.map(h => `
+      <div class="hyp-item">
+        <div class="hyp-meta">
+          <span class="hyp-rank">#${h.rank}</span>
+          <span class="hyp-score">${(h.score||0).toFixed(3)}</span>
+          <span class="hyp-ip">${escHtml(h.source_ip||'')}</span>
+        </div>
+        <div class="hyp-text">${escHtml(h.text||'')}</div>
+      </div>`).join('');
+  } catch (e) { /* silent */ }
+}
+
+// ── Poll: escalated ────────────────────────────────────────────────────────
+async function pollEscalated() {
+  try {
+    const data = await api('/purple/escalated?limit=15');
+    const escs = data.escalated || [];
+    document.getElementById('esc-badge').textContent = data.count || 0;
+    const body = document.getElementById('esc-body');
+    if (!escs.length) { body.innerHTML = '<div class="empty-state">Sin escalados de Ares</div>'; return; }
+    body.innerHTML = escs.map(e => `
+      <div class="esc-item">
+        <div class="esc-header">
+          <span class="esc-severity sev-${e.severity||'medium'}">${(e.severity||'?').toUpperCase()}</span>
+          <span class="esc-ip">${escHtml(e.source_ip||'')}</span>
+        </div>
+        <div class="esc-ttps">${(e.ttp_tags||[]).join(' · ')}</div>
+        <div class="esc-narrative">${escHtml(e.narrative||'')}</div>
+      </div>`).join('');
+  } catch (e) { /* silent */ }
+}
+
+// ── Render: feed table ─────────────────────────────────────────────────────
+function renderFeed(events, hasNew) {
+  const body = document.getElementById('feed-body');
+  if (!events.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty-state">Sin eventos recientes</td></tr>';
+    return;
+  }
+  body.innerHTML = events.map((e, i) => {
+    const t = new Date(e.ts * 1000);
+    const ts = t.toTimeString().slice(0, 8);
+    const cciStr = (e.cci || 0).toFixed(3);
+    const cciColor = e.cci >= 0.75 ? 'var(--crit)' : e.cci >= 0.45 ? 'var(--warn)' : 'var(--ok)';
+    const vClass = e.guard_verdict === 'block' ? 'verdict-block' : e.guard_verdict === 'quarantine' ? 'verdict-quarantine' : 'verdict-pass';
+    const chip = `<span class="${CHIP_CLASS[e.attack_type]||'chip chip-normal'}">${ATTACK_LABELS[e.attack_type]||e.attack_type}</span>`;
+    const newClass = (i === 0 && hasNew) ? 'feed-new' : '';
+    return `<tr class="${newClass}">
+      <td>${ts}</td>
+      <td>${escHtml(e.source_ip||'')}</td>
+      <td class="cci-cell" style="color:${cciColor}">${cciStr}</td>
+      <td class="${vClass}">${e.guard_verdict||'?'}</td>
+      <td>${chip}</td>
+      <td>${e.hypotheses||0}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Render: history table ──────────────────────────────────────────────────
+function renderHistory() {
+  const filtered = currentFilter === 'all'
+    ? allEvents
+    : allEvents.filter(e => e.attack_type === currentFilter);
+
+  document.getElementById('bottom-count').textContent = `${filtered.length} eventos`;
+  const body = document.getElementById('history-body');
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="9" class="empty-state">Sin eventos</td></tr>';
+    return;
+  }
+  body.innerHTML = filtered.map((e, i) => {
+    const t = new Date(e.ts * 1000);
+    const ts = `${t.toLocaleDateString()} ${t.toTimeString().slice(0,8)}`;
+    const cciStr = (e.cci||0).toFixed(3);
+    const cciColor = e.cci >= 0.75 ? 'var(--crit)' : e.cci >= 0.45 ? 'var(--warn)' : 'var(--ok)';
+    const chip = `<span class="${CHIP_CLASS[e.attack_type]||'chip chip-normal'}">${ATTACK_LABELS[e.attack_type]||e.attack_type}</span>`;
+    const crit = e.is_critical ? '<span style="color:var(--crit)">●</span>' : '<span style="color:var(--dim)">○</span>';
+    const vClass = e.guard_verdict === 'block' ? 'verdict-block' : e.guard_verdict === 'quarantine' ? 'verdict-quarantine' : 'verdict-pass';
+    return `<tr>
+      <td style="color:var(--dim)">${filtered.length - i}</td>
+      <td>${ts}</td>
+      <td>${escHtml(e.source_ip||'')}</td>
+      <td style="color:${cciColor}">${cciStr}</td>
+      <td class="${vClass}">${e.guard_verdict||'?'}</td>
+      <td>${chip}</td>
+      <td>${crit}</td>
+      <td>${e.hypotheses||0}</td>
+      <td style="color:var(--dim)">${escHtml(e.operator_id||'')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Filter chips ───────────────────────────────────────────────────────────
+document.querySelectorAll('.filter-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    renderHistory();
+  });
+});
+
+// ── Radar ring (Canvas) ────────────────────────────────────────────────────
+function initRadar() { animateRadar(); }
+
+function animateRadar() {
+  const canvas = document.getElementById('cci-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = 200, H = 200, cx = 100, cy = 100, R = 80;
+
+  // Ease displayCci toward targetCci
+  displayCci += (targetCci - displayCci) * 0.06;
+  if (pendingPulse) { pulseAlpha = 1.0; pendingPulse = false; }
+  if (pulseAlpha > 0) pulseAlpha = Math.max(0, pulseAlpha - 0.04);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background rings
+  for (let r = R * 0.25; r <= R; r += R * 0.25) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(29,37,53,0.8)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Cross hairs
+  ctx.strokeStyle = 'rgba(29,37,53,0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.stroke();
+
+  // Threat arc fill
+  const cci = displayCci;
+  const color = cci >= 0.75 ? '#ff4444' : cci >= 0.45 ? '#f0b429' : '#22c55e';
+  const glow  = cci >= 0.75 ? 'rgba(255,68,68,' : cci >= 0.45 ? 'rgba(240,180,41,' : 'rgba(34,197,94,';
+  const endAngle = -Math.PI / 2 + (cci * Math.PI * 2);
+
+  // Glow fill (pie)
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  grad.addColorStop(0, glow + '0.18)');
+  grad.addColorStop(1, glow + '0.04)');
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, R, -Math.PI / 2, endAngle);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Arc stroke
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, -Math.PI / 2, endAngle);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Track ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, -Math.PI / 2, Math.PI * 1.5);
+  ctx.strokeStyle = 'rgba(29,37,53,0.9)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Tip dot
+  if (cci > 0.01) {
+    const tx = cx + Math.cos(endAngle) * R;
+    const ty = cy + Math.sin(endAngle) * R;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Pulse ring on new event
+  if (pulseAlpha > 0) {
+    const pr = R + (1 - pulseAlpha) * 28;
+    ctx.beginPath();
+    ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0,229,255,${pulseAlpha * 0.6})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Center label: CCI value
+  ctx.fillStyle = color;
+  ctx.font = 'bold 28px ' + getComputedStyle(document.documentElement).getPropertyValue('--mono').trim().split(',')[0].replace(/"/g,'').trim();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(cci.toFixed(3), cx, cy);
+
+  // Update DOM elements
+  document.getElementById('cci-value').textContent = cci.toFixed(3);
+  document.getElementById('cci-value').style.color = color;
+  const label = cci >= 0.75 ? 'CRÍTICO' : cci >= 0.45 ? 'MODERADO' : 'BAJO';
+  const tlabel = document.getElementById('threat-label');
+  tlabel.textContent = label;
+  tlabel.style.color = color;
+
+  animRafId = requestAnimationFrame(animateRadar);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+function fmt(n) { return Math.round(n).toLocaleString(); }
+function updateFeedBadge(n) { document.getElementById('feed-badge').textContent = n; }
+function updateLastUpdate() {
+  const now = new Date();
+  document.getElementById('last-update').textContent =
+    `Actualizado ${now.toTimeString().slice(0,8)}`;
+}
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>

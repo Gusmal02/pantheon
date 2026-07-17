@@ -23,12 +23,13 @@ import collections
 import hmac
 import json
 import os
+import re
 import threading
 import time
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from pantheon.acme.feedback_auth import (
@@ -79,6 +80,24 @@ class _RateLimiter:
 
 
 _rate_limiter = _RateLimiter()
+
+# ── Ring buffer de eventos recientes (últimos 200) ────────────────────────────
+
+_event_log: collections.deque = collections.deque(maxlen=200)
+_event_log_lock = threading.Lock()
+
+
+def _classify_attack(verdict: str, cci: float, guard_verdict: str) -> str:
+    """Clasifica el tipo de evento para el War Room."""
+    if guard_verdict == "block":
+        return "injection"
+    if guard_verdict == "quarantine":
+        return "quarantine"
+    if cci >= 0.75:
+        return "critical_anomaly"
+    if cci >= 0.45:
+        return "moderate_anomaly"
+    return "normal"
 
 
 @app.middleware("http")
@@ -155,7 +174,24 @@ def ingest_event(
         log_text=event.log_text or "",
         operator_id=operator_id,
     )
-    return result.to_dict()
+    d = result.to_dict()
+    with _event_log_lock:
+        _event_log.appendleft({
+            "ts":           time.time(),
+            "source_ip":    event.source_ip,
+            "cci":          d.get("cci", 0),
+            "guard_verdict": d.get("guard_verdict", "pass"),
+            "accepted":     d.get("accepted", True),
+            "is_critical":  d.get("is_critical", False),
+            "hypotheses":   len(d.get("hypotheses", [])),
+            "attack_type":  _classify_attack(
+                d.get("guard_verdict", "pass"),
+                d.get("cci", 0),
+                d.get("guard_verdict", "pass"),
+            ),
+            "operator_id":  operator_id,
+        })
+    return d
 
 
 @app.get("/hypotheses")
@@ -296,6 +332,83 @@ def trigger_killswitch(
         "reason": request.reason,
         "operator_id": operator_id,
     }
+
+
+@app.get("/events/recent", include_in_schema=False)
+def events_recent(
+    limit: int = 50,
+    operator_id: str = Depends(_get_operator),
+) -> dict:
+    """Últimos N eventos procesados (ring buffer en memoria)."""
+    with _event_log_lock:
+        events = list(_event_log)[:limit]
+    return {"events": events, "total": len(_event_log)}
+
+
+@app.post("/purple/escalated/log", include_in_schema=False)
+def _purple_log_hook(payload: dict, operator_id: str = Depends(_get_operator)) -> dict:
+    """Hook interno para registrar escalados Ares en el event log."""
+    with _event_log_lock:
+        _event_log.appendleft({
+            "ts":           time.time(),
+            "source_ip":    payload.get("source_ip", "ares"),
+            "cci":          0.0,
+            "guard_verdict": "pass",
+            "accepted":     True,
+            "is_critical":  payload.get("severity") == "critical",
+            "hypotheses":   0,
+            "attack_type":  "ares_escalation",
+            "operator_id":  operator_id,
+        })
+    return {"logged": True}
+
+
+@app.get("/metrics/json", include_in_schema=False)
+def metrics_json(operator_id: str = Depends(_get_operator)) -> dict:
+    """Métricas Prometheus devueltas como JSON estructurado."""
+    from prometheus_client import generate_latest
+    raw = generate_latest().decode("utf-8")
+    result: dict = {}
+    for line in raw.splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        m = re.match(r'^([a-z_]+)(?:\{([^}]*)\})?\s+([\d.e+\-]+)', line)
+        if not m:
+            continue
+        name, labels_str, value = m.group(1), m.group(2) or "", m.group(3)
+        try:
+            v = float(value)
+        except ValueError:
+            continue
+        if labels_str:
+            label_pairs = dict(re.findall(r'(\w+)="([^"]*)"', labels_str))
+            key = f"{name}{{{','.join(f'{k}={v}' for k,v in label_pairs.items())}}}"
+        else:
+            key = name
+        result[key] = v
+    # Agrega conteo de eventos del ring buffer
+    with _event_log_lock:
+        evs = list(_event_log)
+    type_counts: dict = {}
+    for e in evs:
+        t = e.get("attack_type", "normal")
+        type_counts[t] = type_counts.get(t, 0) + 1
+    result["_event_log_total"] = len(evs)
+    result["_event_types"] = type_counts
+    return result
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard(token: Optional[str] = None) -> HTMLResponse:
+    """War Room — dashboard en tiempo real de Pantheon."""
+    html_path = os.path.join(os.path.dirname(__file__), "war_room.html")
+    with open(html_path, encoding="utf-8") as f:
+        html = f.read()
+    if token:
+        html = html.replace("__PREFILL_TOKEN__", token)
+    else:
+        html = html.replace("__PREFILL_TOKEN__", "")
+    return HTMLResponse(content=html)
 
 
 @app.get("/metrics", include_in_schema=False)

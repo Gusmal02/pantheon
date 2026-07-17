@@ -40,6 +40,8 @@ dependencies = [
     "prometheus-client>=0.21.0",
     # Utils
     "python-dotenv>=1.0.0",
+    "reportlab>=5.0.0",
+    "matplotlib>=3.11.0",
 ]
 
 [project.optional-dependencies]
