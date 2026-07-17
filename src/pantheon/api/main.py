@@ -22,11 +22,15 @@ from __future__ import annotations
 import collections
 import hmac
 import json
+import logging
 import os
 import re
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
@@ -104,7 +108,7 @@ def _classify_attack(verdict: str, cci: float, guard_verdict: str) -> str:
 async def rate_limit_middleware(request: Request, call_next):
     client_ip = request.client.host if request.client else "unknown"
     # Eximir /health y /metrics del rate limiting
-    if request.url.path in ("/health", "/metrics"):
+    if request.url.path in ("/health", "/metrics", "/ornith/ingest"):
         return await call_next(request)
     if not _rate_limiter.is_allowed(client_ip):
         RATE_LIMITED_REQUESTS.inc()
@@ -137,6 +141,22 @@ class KillSwitchRequest(BaseModel):
     reason: str = "manual"
 
 
+class OrnithIngestRequest(BaseModel):
+    campaign_id: str
+    run_number: int
+    phase: int
+    tactic: str
+    source_ip: str
+    target_ip: str = "127.0.0.1"
+    window_start: Optional[str] = None
+    window_end: Optional[str] = None
+    technique_sequence: list[str] = []
+    feature_vector: list[float] = []
+    cci_per_step: list[float] = []
+    anomaly_signature: str
+    hypothesis: str = ""
+
+
 # ── Autenticación ─────────────────────────────────────────────────────────────
 
 def _get_operator(authorization: str = Header(...)) -> str:
@@ -156,6 +176,57 @@ def _get_operator(authorization: str = Header(...)) -> str:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "pantheon", "version": "2.1.0"}
+
+
+@app.post("/ornith/ingest", status_code=status.HTTP_201_CREATED)
+def ornith_ingest(
+    req: OrnithIngestRequest,
+    operator_id: str = Depends(_get_operator),
+) -> dict:
+    """
+    Ingesta directa de episodio desde Ares — bypassa Centinela/Hermes/Guard.
+
+    Indexa el episodio en Qdrant (Ornith) y actualiza los pesos de co-ocurrencia
+    del grafo ATT&CK en el pipeline activo. Exento de rate limiting.
+    """
+    import uuid as _uuid
+    from pantheon.ornith.client import index_episode
+    from pantheon.ornith.episode_schema import Episode
+
+    ws = datetime.fromisoformat(req.window_start) if req.window_start else None
+    we = datetime.fromisoformat(req.window_end) if req.window_end else None
+
+    episode = Episode(
+        id=str(_uuid.uuid4()),
+        timestamp=datetime.now(timezone.utc),
+        anomaly_signature=req.anomaly_signature,
+        campaign_id=req.campaign_id,
+        source_ip=req.source_ip,
+        window_start=ws,
+        window_end=we,
+        technique_sequence=req.technique_sequence,
+        hypothesis=req.hypothesis or f"Automated: Run {req.run_number:02d} — {req.tactic}",
+    )
+
+    indexed = False
+    try:
+        index_episode(episode)
+        indexed = True
+    except Exception as exc:
+        logger.warning("ornith_ingest: index_episode falló: %s", exc)
+
+    if req.technique_sequence:
+        try:
+            get_pipeline()._attck.update_cooccurrence(req.technique_sequence)
+        except Exception as exc:
+            logger.warning("ornith_ingest: update_cooccurrence falló: %s", exc)
+
+    return {
+        "episode_id": episode.id,
+        "indexed": indexed,
+        "campaign_id": req.campaign_id,
+        "techniques_applied": len(req.technique_sequence),
+    }
 
 
 @app.post("/events", status_code=status.HTTP_202_ACCEPTED)
