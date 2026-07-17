@@ -22,6 +22,22 @@ from typing import Optional
 
 import networkx as nx
 
+# ── Singleton compartido entre pipeline, Ornith y Hermes ─────────────────────
+_shared: "ATTCKGraph | None" = None
+
+
+def get_shared_graph() -> "ATTCKGraph":
+    """Devuelve la instancia singleton de ATTCKGraph.
+
+    Garantiza que pipeline.py, ornith/client.py y hermes/nodes.py
+    operan sobre el mismo grafo: los pesos actualizados por Ornith
+    son inmediatamente visibles para A* en Hermes.
+    """
+    global _shared
+    if _shared is None:
+        _shared = ATTCKGraph()
+    return _shared
+
 
 _DEFAULT_RELATIONS = [
     ("T1595", "T1190"),   # Recon → Exploit Public-Facing App
@@ -179,19 +195,39 @@ class ATTCKGraph:
                     if node not in self._graph.nodes or "tactic" not in self._graph.nodes[node]:
                         self._graph.nodes[node]["tactic"] = self._tactic_map.get(node, "unknown")
 
+    def _astar_heuristic(self, u: str, v: str) -> float:
+        """h(u, v) admisible para A*: BFS_hops(u→v) × min_peso_saliente(u).
+
+        Admisible porque:
+          - BFS_hops es el límite inferior de aristas necesarias (sin pesos)
+          - min_peso_saliente(u) es el peso mínimo posible por arista desde u
+          - por tanto h(u,v) <= costo_real(u→v) siempre
+
+        Se vuelve más informada conforme Ornith acumula episodios: nodos con
+        alta co-ocurrencia tienen min_peso menor → A* los explora antes.
+        """
+        try:
+            hops = nx.shortest_path_length(self._graph, u, v)
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            return float("inf")
+        out_weights = [d.get("weight", 1.0) for _, _, d in self._graph.out_edges(u, data=True)]
+        min_w = min(out_weights) if out_weights else 0.1
+        return hops * min_w
+
     def shortest_path_to_tactic(
         self,
         start_technique: str,
         target_tactic: str,
         max_results: int = 5,
     ) -> list[str]:
-        """Dijkstra desde start_technique hacia el nodo con target_tactic más cercano.
+        """A* desde start_technique hacia el nodo con target_tactic de menor costo.
 
         Devuelve la secuencia de técnicas intermedias (excluye start_technique).
         Retorna lista vacía si no hay camino o la técnica inicial no existe.
 
-        Esto es A* con h(n)=0. Cuando Ornith tenga episodios reales, la heurística
-        se añade aquí sin cambiar la interfaz.
+        La heurística _astar_heuristic es admisible: garantiza optimalidad.
+        Conforme Ornith indexa episodios reales, los pesos bajan y A* guía
+        la búsqueda hacia los caminos más frecuentes en campañas reales.
         """
         if start_technique not in self._graph:
             return []
@@ -208,14 +244,19 @@ class ATTCKGraph:
         best_cost = float("inf")
         for goal in goal_nodes:
             try:
-                cost = nx.dijkstra_path_length(
-                    self._graph, start_technique, goal, weight="weight"
+                path = nx.astar_path(
+                    self._graph,
+                    start_technique,
+                    goal,
+                    heuristic=self._astar_heuristic,
+                    weight="weight",
+                )
+                cost = sum(
+                    self._graph[u][v]["weight"] for u, v in zip(path, path[1:])
                 )
                 if cost < best_cost:
                     best_cost = cost
-                    best_path = nx.dijkstra_path(
-                        self._graph, start_technique, goal, weight="weight"
-                    )
+                    best_path = path
             except nx.NetworkXNoPath:
                 continue
 

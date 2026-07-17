@@ -145,6 +145,60 @@ class TestATTCKGraph:
         assert len(path_after) > 0
         assert path_after[0] == "T1105"
 
+    # ── A* heurística ─────────────────────────────────────────────────────────
+
+    def test_astar_finds_same_path_as_dijkstra_on_uniform_weights(self):
+        """Con pesos uniformes A* y Dijkstra deben encontrar el mismo camino óptimo."""
+        import networkx as nx
+        g = self._graph()
+        # Verificar con Dijkstra explícito
+        start, goal = "T1059", "T1041"
+        try:
+            dijkstra_path = nx.dijkstra_path(g._graph, start, goal, weight="weight")
+        except nx.NetworkXNoPath:
+            pytest.skip("No path between T1059 and T1041 en el grafo por defecto")
+        astar_result = g.shortest_path_to_tactic("T1059", "exfiltration", max_results=10)
+        # El camino de A* debe incluir los mismos nodos intermedios que Dijkstra
+        assert len(astar_result) > 0
+        assert astar_result[-1] == dijkstra_path[-1]
+
+    def test_heuristic_is_admissible(self):
+        """h(u,v) <= costo_real(u→v) para todo par con camino existente."""
+        import networkx as nx
+        g = self._graph()
+        # Reforzar algunos pesos para que no sean todos 1.0
+        g.update_cooccurrence(["T1059", "T1105", "T1071", "T1041"])
+        g.update_cooccurrence(["T1059", "T1105"])
+
+        for src in list(g.technique_ids)[:6]:
+            for tgt in list(g.technique_ids)[:6]:
+                if src == tgt:
+                    continue
+                try:
+                    real_cost = nx.dijkstra_path_length(g._graph, src, tgt, weight="weight")
+                    h = g._astar_heuristic(src, tgt)
+                    assert h <= real_cost + 1e-9, (
+                        f"Heuristica NO admisible: h({src},{tgt})={h} > real={real_cost}"
+                    )
+                except nx.NetworkXNoPath:
+                    assert g._astar_heuristic(src, tgt) == float("inf")
+
+    def test_heuristic_returns_inf_for_no_path(self):
+        g = self._graph()
+        assert g._astar_heuristic("T9999", "T1041") == float("inf")
+
+    def test_heuristic_zero_for_same_node(self):
+        g = self._graph()
+        # Misma fuente y destino — sin aristas, BFS length = 0
+        h = g._astar_heuristic("T1059", "T1059")
+        assert h == 0.0
+
+    def test_singleton_shared_across_calls(self):
+        from pantheon.attck_graph.graph import get_shared_graph
+        g1 = get_shared_graph()
+        g2 = get_shared_graph()
+        assert g1 is g2
+
     def test_load_cooccurrence_from_episodes(self):
         from pantheon.ornith.episode_schema import Episode
         from datetime import datetime, timezone

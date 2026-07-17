@@ -20,6 +20,16 @@ from pantheon.hermes.state import HermesState
 # Tipo del retriever: función que acepta (query, top_k) y devuelve lista de docs
 RetrievalFn = Callable[[str, int], list[dict]]
 
+_TACTIC_PROGRESSION: dict[str, str] = {
+    "reconnaissance":      "initial-access",
+    "initial-access":      "execution",
+    "execution":           "lateral-movement",
+    "persistence":         "lateral-movement",
+    "credential-access":   "lateral-movement",
+    "lateral-movement":    "exfiltration",
+    "command-and-control": "exfiltration",
+}
+
 _RELEVANCE_KEYWORDS = [
     "lateral movement", "credential", "exploit", "command", "control",
     "exfil", "ransomware", "phishing", "anomaly", "suspicious", "attack",
@@ -175,9 +185,11 @@ def generate_node(
     # Solo usar docs relevantes
     relevant_docs = [d for d, g in zip(docs, doc_grades) if g]
 
-    # Expandir TTPs desde el grafo ATT&CK
+    # Expandir TTPs desde el grafo ATT&CK usando A* dirigido cuando es posible.
+    # A* busca el camino más probable hacia el objetivo táctico inferido del contexto.
+    # Si no hay TTPs observados o no hay camino, cae back a BFS (expand_hypothesis).
     observed_ttps = _extract_ttps(relevant_docs)
-    attck_suggestions = attck_graph.expand_hypothesis(observed_ttps, max_candidates=5)
+    attck_suggestions = _expand_with_astar(observed_ttps, attck_graph)
 
     if llm is not None:
         texts = _generate_with_llm(state, relevant_docs, attck_suggestions, llm, max_hypotheses)
@@ -188,6 +200,30 @@ def generate_node(
         "hypothesis_texts": texts,
         "attck_suggestions": attck_suggestions,
     }
+
+
+def _expand_with_astar(observed_ttps: list[str], attck_graph: ATTCKGraph) -> list[str]:
+    """Expande TTPs usando A* dirigido al objetivo táctico inferido.
+
+    1. Toma la última técnica observada como punto de partida.
+    2. Infiere la táctica objetivo con _TACTIC_PROGRESSION.
+    3. Llama a shortest_path_to_tactic (A* con heurística admisible).
+    4. Fallback a expand_hypothesis (BFS) si no hay camino.
+
+    Resultado: ≤5 técnicas dirigidas en lugar de hasta 10 vecinos BFS,
+    reduciendo contexto irrelevante enviado al LLM.
+    """
+    if observed_ttps:
+        latest = observed_ttps[-1]
+        latest_tactic = attck_graph.get_tactic(latest)
+        target_tactic = _TACTIC_PROGRESSION.get(latest_tactic)
+        if target_tactic:
+            directed = attck_graph.shortest_path_to_tactic(
+                latest, target_tactic, max_results=5
+            )
+            if directed:
+                return directed
+    return attck_graph.expand_hypothesis(observed_ttps, max_candidates=5)
 
 
 def _extract_ttps(docs: list[dict]) -> list[str]:

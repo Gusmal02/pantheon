@@ -34,7 +34,12 @@ def ensure_collection() -> None:
 
 
 def index_episode(episode: Episode) -> None:
-    """Indexa un episodio: vectoriza anomaly_signature + hypothesis, guarda el resto como payload."""
+    """Indexa un episodio en Qdrant y actualiza los pesos del grafo ATT&CK.
+
+    Si el episodio tiene technique_sequence, llama a update_cooccurrence()
+    sobre el singleton compartido de ATTCKGraph. Esto hace que los pesos
+    estén disponibles para A* en Hermes sin ningún paso manual adicional.
+    """
     if not episode.iocs_extraidos:
         full_text = f"{episode.anomaly_signature} {episode.hypothesis}"
         episode.iocs_extraidos = extract_iocs(full_text)
@@ -56,6 +61,15 @@ def index_episode(episode: Episode) -> None:
             )
         ],
     )
+
+    # Actualizar co-ocurrencia en el grafo compartido de forma no bloqueante.
+    # Un fallo aquí no debe interrumpir la indexación del episodio.
+    if episode.technique_sequence:
+        try:
+            from pantheon.attck_graph.graph import get_shared_graph
+            get_shared_graph().update_cooccurrence(episode.technique_sequence)
+        except Exception:
+            pass
 
 
 def search_hybrid(query: str, limit: int = 5) -> list[Episode]:

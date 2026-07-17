@@ -29,7 +29,7 @@ import numpy as np
 
 from pantheon.acme.ranker import AcmeRanker
 from pantheon.acme.stage1 import AcmeStage1
-from pantheon.attck_graph.graph import ATTCKGraph
+from pantheon.attck_graph.graph import ATTCKGraph, get_shared_graph
 from pantheon.centinela.detector import AnomalyDetector
 from pantheon.centinela.pipeline import CentinelaDetectionPipeline, NetworkEvent
 from pantheon.core.metrics import (
@@ -86,7 +86,7 @@ class PantheonPipeline:
 
     def __init__(self, ranker: Optional[AcmeRanker] = None) -> None:
         self._guard     = InputGuard()
-        self._attck     = ATTCKGraph()
+        self._attck     = get_shared_graph()  # singleton: comparte pesos con Ornith
         self._ranker    = ranker or AcmeRanker(stage1=AcmeStage1())
         self._detector  = self._load_or_create_detector()
         self._centinela = CentinelaDetectionPipeline(self._detector)

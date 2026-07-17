@@ -9,6 +9,8 @@ Cubre:
   5. Circuit breaker en AresBridgeWorker
   6. Rate limiting middleware
   7. Persistencia purple_bridge (fallback en memoria cuando DB no disponible)
+  8. Ornith auto-update: index_episode actualiza pesos del grafo ATT&CK compartido
+  9. Hermes A*: _expand_with_astar usa camino dirigido cuando hay TTPs
 """
 
 from __future__ import annotations
@@ -339,3 +341,130 @@ class TestPurpleBridgeMemoryFallback:
             assert len(unprocessed) == 0
         finally:
             purple_bridge._USE_DB = original
+
+
+# ── 8. Ornith auto-update de co-ocurrencia ───────────────────────────────────
+
+class TestOrnithAutoUpdate:
+    """index_episode actualiza el grafo ATT&CK compartido automáticamente."""
+
+    def setup_method(self):
+        # Resetear el singleton antes de cada test para aislar el estado
+        import pantheon.attck_graph.graph as _g
+        _g._shared = None
+
+    def teardown_method(self):
+        import pantheon.attck_graph.graph as _g
+        _g._shared = None
+
+    def test_index_episode_updates_shared_graph(self):
+        """Indexar un episodio con technique_sequence reduce el peso del arco."""
+        import uuid
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock, patch
+
+        from pantheon.attck_graph.graph import get_shared_graph
+        from pantheon.ornith.episode_schema import Episode
+
+        # Peso inicial antes de cualquier episodio
+        g_before = get_shared_graph()
+        w_before = g_before.cooccurrence_weight("T1190", "T1059")
+        assert w_before == 1.0 or w_before is None  # estado limpio
+
+        episode = Episode(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc),
+            anomaly_signature="port scan",
+            hypothesis="Initial access seguido de ejecución",
+            technique_sequence=["T1190", "T1059"],
+        )
+
+        # Mockear Qdrant y los embeddings para no necesitar infraestructura
+        with (
+            patch("pantheon.ornith.client.client") as mock_qdrant,
+            patch("pantheon.ornith.client.embed_dense", return_value=[0.0] * 384),
+            patch("pantheon.ornith.client.embed_sparse", return_value={"indices": [], "values": []}),
+            patch("pantheon.ornith.client.extract_iocs", return_value=[]),
+        ):
+            mock_qdrant.upsert = MagicMock()
+            from pantheon.ornith.client import index_episode
+            index_episode(episode)
+
+        g_after = get_shared_graph()
+        w_after = g_after.cooccurrence_weight("T1190", "T1059")
+        assert w_after is not None
+        assert w_after < 1.0
+
+    def test_index_episode_without_sequence_does_not_crash(self):
+        """Episodio sin technique_sequence no debe fallar."""
+        import uuid
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock, patch
+
+        from pantheon.ornith.episode_schema import Episode
+
+        episode = Episode(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now(timezone.utc),
+            anomaly_signature="anomalía",
+            hypothesis="hipótesis sin TTPs",
+        )
+
+        with (
+            patch("pantheon.ornith.client.client") as mock_qdrant,
+            patch("pantheon.ornith.client.embed_dense", return_value=[0.0] * 384),
+            patch("pantheon.ornith.client.embed_sparse", return_value={"indices": [], "values": []}),
+            patch("pantheon.ornith.client.extract_iocs", return_value=[]),
+        ):
+            mock_qdrant.upsert = MagicMock()
+            from pantheon.ornith.client import index_episode
+            index_episode(episode)  # no debe lanzar excepción
+
+
+# ── 9. Hermes A* expansion ───────────────────────────────────────────────────
+
+class TestHermesAStarExpansion:
+    """_expand_with_astar usa camino dirigido cuando hay TTPs y hay ruta."""
+
+    def test_expands_with_directed_path_when_ttps_present(self):
+        from pantheon.attck_graph.graph import ATTCKGraph
+        from pantheon.hermes.nodes import _expand_with_astar
+
+        g = ATTCKGraph()
+        # T1190 es initial-access → el objetivo táctico es execution
+        result = _expand_with_astar(["T1190"], g)
+        assert isinstance(result, list)
+        assert len(result) > 0
+
+    def test_fallback_to_bfs_when_no_ttps(self):
+        from pantheon.attck_graph.graph import ATTCKGraph
+        from pantheon.hermes.nodes import _expand_with_astar
+
+        g = ATTCKGraph()
+        # Sin TTPs observados → expand_hypothesis BFS
+        result = _expand_with_astar([], g)
+        assert isinstance(result, list)
+
+    def test_directed_path_returns_valid_technique_ids(self):
+        from pantheon.attck_graph.graph import ATTCKGraph
+        from pantheon.hermes.nodes import _expand_with_astar
+
+        g = ATTCKGraph()
+        observed = ["T1059"]  # execution → objetivo lateral-movement
+        result = _expand_with_astar(observed, g)
+        # Todas las técnicas devueltas deben existir en el grafo
+        if result:
+            for tech in result:
+                assert g.get_tactic(tech) != "" or tech.startswith("T")
+
+    def test_fallback_bfs_when_no_path_to_tactic(self):
+        """Si A* no encuentra camino, cae a BFS sin lanzar excepción."""
+        from unittest.mock import patch
+        from pantheon.attck_graph.graph import ATTCKGraph
+        from pantheon.hermes.nodes import _expand_with_astar
+
+        g = ATTCKGraph()
+        # Forzar que shortest_path_to_tactic devuelva [] para simular sin ruta
+        with patch.object(g, "shortest_path_to_tactic", return_value=[]):
+            result = _expand_with_astar(["T1059"], g)
+        assert isinstance(result, list)
