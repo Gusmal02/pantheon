@@ -29,6 +29,34 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 button{cursor:pointer;font-family:var(--mono)}
 input,textarea{font-family:var(--mono)}
 
+/* ── Connector cards (Fuentes tab) ──────────────────────────────────────── */
+.connector-card{background:var(--surface);border:1px solid var(--border2);border-radius:6px;overflow:hidden;transition:border-color .2s}
+.connector-card:hover{border-color:var(--accent-d)}
+.cc-header{display:flex;align-items:center;gap:12px;padding:14px 16px;flex-wrap:wrap}
+.cc-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.cc-name{font-size:13px;font-weight:700;letter-spacing:.1em;color:var(--accent)}
+.cc-type{font-size:10px;color:var(--dim);margin-top:2px}
+.cc-stats{display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:100px}
+.cc-stat{font-size:11px;color:var(--text);font-variant-numeric:tabular-nums}
+.cc-stat.dim{color:var(--dim);font-size:10px}
+.cc-btns{display:flex;gap:6px;flex-shrink:0}
+.cc-btn{padding:5px 12px;border:1px solid var(--border2);background:transparent;color:var(--dim);font-size:10px;letter-spacing:.07em;text-transform:uppercase;transition:all .15s;border-radius:3px}
+.cc-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cc-tgl{border-color:var(--ok);color:var(--ok)}
+.cc-tgl:hover{background:rgba(34,197,94,.12)}
+.cc-tgl.active{background:rgba(34,197,94,.15);border-color:var(--ok)}
+.cc-tgl.active:hover{background:rgba(255,68,68,.12);border-color:var(--crit);color:var(--crit)}
+.cc-msg{padding:6px 16px;font-size:11px;border-top:1px solid var(--border)}
+.cc-body{padding:12px 16px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+.cc-input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:5px 8px;font-size:12px;font-family:var(--mono);border-radius:3px;transition:border-color .15s;flex:1}
+.cc-input:focus{outline:none;border-color:var(--accent)}
+.cc-save{align-self:flex-start;padding:6px 16px;background:var(--accent-g);border:1px solid var(--accent-d);color:var(--accent);font-size:11px;letter-spacing:.07em;font-family:var(--mono);border-radius:3px;transition:all .15s}
+.cc-save:hover{background:rgba(0,212,255,.2)}
+.cc-dot{width:10px;height:10px;border-radius:50%;background:var(--dim2);flex-shrink:0;transition:background .3s,box-shadow .3s}
+.cc-dot.online{background:var(--ok);box-shadow:0 0 7px var(--ok);animation:p-ok 2s ease-in-out infinite}
+.cc-dot.warn{background:var(--warn);box-shadow:0 0 7px var(--warn);animation:p-warn 1s ease-in-out infinite}
+.cc-dot.offline{background:var(--dim2)}
+
 /* ── App shell ───────────────────────────────────────────────────────────── */
 #app{display:flex;flex-direction:column;height:100vh}
 
@@ -487,6 +515,10 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;ba
   <button class="tab" data-tab="cfg"  onclick="switchTab('cfg')">
     ⚙ <span id="tt-cfg">CONFIG</span>
   </button>
+  <button class="tab" data-tab="src"  onclick="switchTab('src')">
+    ⇄ <span id="tt-src">FUENTES</span>
+    <span class="tab-badge" id="tb-src">0</span>
+  </button>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
@@ -771,6 +803,106 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;ba
 
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 7: FUENTES                                                         -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tabpanel" id="tab-src">
+  <div style="padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;height:100%">
+
+    <!-- Suricata -->
+    <div class="connector-card" id="cc-suricata">
+      <div class="cc-header">
+        <div class="cc-left">
+          <span class="cc-dot" id="cdot-suricata"></span>
+          <div>
+            <div class="cc-name">SURICATA</div>
+            <div class="cc-type" id="ct-suricata">IDS/IPS de Red — EVE JSON</div>
+          </div>
+        </div>
+        <div class="cc-stats">
+          <span class="cc-stat" id="cevt-suricata">0 eventos</span>
+          <span class="cc-stat dim" id="clast-suricata">—</span>
+        </div>
+        <div class="cc-btns">
+          <button class="cc-btn" onclick="testConnector('suricata')" id="ctest-suricata">Probar</button>
+          <button class="cc-btn cc-tgl" onclick="toggleConnector('suricata')" id="ctgl-suricata">Habilitar</button>
+        </div>
+      </div>
+      <div class="cc-msg" id="cerr-suricata" style="display:none"></div>
+      <div class="cc-body">
+        <div class="cfg-row">
+          <span class="cfg-lbl" id="cfl-suricata-path">Ruta EVE JSON</span>
+          <input class="cc-input" type="text" id="cfi-suricata-eve_json_path" placeholder="/var/log/suricata/eve.json">
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-lbl" id="cfl-suricata-poll">Intervalo (s)</span>
+          <input class="cc-input" type="number" id="cfi-suricata-poll_interval_secs" value="5" min="1" max="300" style="width:80px">
+          <span class="cfg-lbl" style="margin-left:16px" id="cfl-suricata-stale">Umbral inactivo (s)</span>
+          <input class="cc-input" type="number" id="cfi-suricata-stale_threshold_secs" value="120" min="10" max="600" style="width:80px">
+        </div>
+        <button class="cc-save" onclick="saveConnectorConfig('suricata')">💾 <span id="cfs-suricata">Guardar</span></button>
+      </div>
+    </div>
+
+    <!-- Wazuh -->
+    <div class="connector-card" id="cc-wazuh">
+      <div class="cc-header">
+        <div class="cc-left">
+          <span class="cc-dot" id="cdot-wazuh"></span>
+          <div>
+            <div class="cc-name">WAZUH</div>
+            <div class="cc-type" id="ct-wazuh">HIDS / SIEM — REST API</div>
+          </div>
+        </div>
+        <div class="cc-stats">
+          <span class="cc-stat" id="cevt-wazuh">0 eventos</span>
+          <span class="cc-stat dim" id="clast-wazuh">—</span>
+        </div>
+        <div class="cc-btns">
+          <button class="cc-btn" onclick="testConnector('wazuh')" id="ctest-wazuh">Probar</button>
+          <button class="cc-btn cc-tgl" onclick="toggleConnector('wazuh')" id="ctgl-wazuh">Habilitar</button>
+        </div>
+      </div>
+      <div class="cc-msg" id="cerr-wazuh" style="display:none"></div>
+      <div class="cc-body">
+        <div class="cfg-row">
+          <span class="cfg-lbl" id="cfl-wazuh-url">URL API</span>
+          <input class="cc-input" type="text" id="cfi-wazuh-api_url" placeholder="https://wazuh-manager:55000" style="flex:1;min-width:200px">
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-lbl" id="cfl-wazuh-user">Usuario</span>
+          <input class="cc-input" type="text" id="cfi-wazuh-username" value="admin" style="width:140px">
+          <span class="cfg-lbl" style="margin-left:16px" id="cfl-wazuh-pass">Contraseña</span>
+          <input class="cc-input" type="password" id="cfi-wazuh-password" placeholder="•••••••" style="width:140px">
+        </div>
+        <div class="cfg-row">
+          <span class="cfg-lbl" id="cfl-wazuh-level">Nivel mín.</span>
+          <input class="cc-input" type="number" id="cfi-wazuh-min_rule_level" value="5" min="0" max="15" style="width:60px">
+          <span class="cfg-lbl" style="margin-left:16px" id="cfl-wazuh-poll">Intervalo (s)</span>
+          <input class="cc-input" type="number" id="cfi-wazuh-poll_interval_secs" value="30" min="5" max="300" style="width:80px">
+          <span class="cfg-lbl" style="margin-left:16px" id="cfl-wazuh-ssl">Verificar SSL</span>
+          <input type="checkbox" id="cfi-wazuh-verify_ssl" style="margin-left:6px;width:16px;height:16px">
+        </div>
+        <button class="cc-save" onclick="saveConnectorConfig('wazuh')">💾 <span id="cfs-wazuh">Guardar</span></button>
+      </div>
+    </div>
+
+    <!-- MCP info -->
+    <div class="connector-card" style="border-color:rgba(168,85,247,.35);background:rgba(168,85,247,.04)">
+      <div class="cc-header" style="border-bottom:none">
+        <div class="cc-left">
+          <span style="font-size:18px">⚡</span>
+          <div>
+            <div class="cc-name" style="color:var(--purple)" id="t-src-mcp-title">MCP — ENRIQUECIMIENTO ACTIVO</div>
+            <div class="cc-type" id="t-src-mcp-desc">Hermes consulta Suricata/Wazuh durante investigaciones activas para enriquecer hipótesis con evidencia en tiempo real.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 </div><!-- /app -->
 
 <script>
@@ -837,6 +969,14 @@ const STRINGS = {
     't-login-desc':'Ingresa el Bearer JWT del operador para conectar al sistema de monitoreo.',
     't-login-btn':'CONECTAR','t-dash-btn':'ABRIR DASHBOARD',
     't-bloqmin':'BLOQ/MIN','t-rateliml':'RATE LIMIT','t-iterh':'ITER HERMES',
+    'tt-src':'FUENTES',
+    't-src-mcp-title':'MCP — ENRIQUECIMIENTO ACTIVO',
+    't-src-mcp-desc':'Hermes consulta Suricata/Wazuh durante investigaciones activas para enriquecer hipótesis con evidencia en tiempo real.',
+    'cfl-suricata-path':'Ruta EVE JSON','cfl-suricata-poll':'Intervalo (s)','cfl-suricata-stale':'Umbral inactivo (s)',
+    'cfl-wazuh-url':'URL API','cfl-wazuh-user':'Usuario','cfl-wazuh-pass':'Contraseña',
+    'cfl-wazuh-level':'Nivel mín.','cfl-wazuh-poll':'Intervalo (s)','cfl-wazuh-ssl':'Verificar SSL',
+    'cfs-suricata':'Guardar','cfs-wazuh':'Guardar',
+    'cc-btn-test':'Probar','cc-btn-enable':'Habilitar','cc-btn-disable':'Deshabilitar',
     'ks-title':'⚠ KILL SWITCH',
     'ks-body':'Esta acción detiene inmediatamente el pipeline de Pantheon. Requiere reinicio manual. ¿Confirmar?',
     'att-inj':'Inyección','att-qua':'Cuarentena','att-cri':'Anomalía Crítica',
@@ -888,6 +1028,14 @@ const STRINGS = {
     't-login-desc':'Enter your operator Bearer JWT to connect to the real-time monitoring system.',
     't-login-btn':'CONNECT','t-dash-btn':'OPEN DASHBOARD',
     't-bloqmin':'BLOCKED/MIN','t-rateliml':'RATE LIMIT','t-iterh':'HERMES ITER',
+    'tt-src':'SOURCES',
+    't-src-mcp-title':'MCP — ACTIVE ENRICHMENT',
+    't-src-mcp-desc':'Hermes queries Suricata/Wazuh during active investigations to enrich hypotheses with real-time evidence.',
+    'cfl-suricata-path':'EVE JSON path','cfl-suricata-poll':'Interval (s)','cfl-suricata-stale':'Stale threshold (s)',
+    'cfl-wazuh-url':'API URL','cfl-wazuh-user':'Username','cfl-wazuh-pass':'Password',
+    'cfl-wazuh-level':'Min level','cfl-wazuh-poll':'Interval (s)','cfl-wazuh-ssl':'Verify SSL',
+    'cfs-suricata':'Save','cfs-wazuh':'Save',
+    'cc-btn-test':'Test','cc-btn-enable':'Enable','cc-btn-disable':'Disable',
     'ks-title':'⚠ KILL SWITCH',
     'ks-body':'This action immediately stops the Pantheon pipeline. Manual restart required. Confirm?',
     'att-inj':'Injection','att-qua':'Quarantine','att-cri':'Critical Anomaly',
@@ -924,6 +1072,135 @@ function switchTab(name){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tabpanel').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
   if(name==='lb') drawSparkCanvas();
+  if(name==='src') loadConnectors();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// FUENTES — Connector management
+// ════════════════════════════════════════════════════════════════════════════
+let _connectorInterval = null;
+
+async function loadConnectors(){
+  if(!TOKEN) return;
+  try{
+    const r = await fetch('/connectors',{headers:{Authorization:`Bearer ${TOKEN}`}});
+    if(!r.ok) return;
+    const data = await r.json();
+    let onlineCount = 0;
+    for(const [name, st] of Object.entries(data.connectors||{})){
+      _applyConnectorStatus(name, st);
+      if(st.online) onlineCount++;
+    }
+    const badge = document.getElementById('tb-src');
+    if(badge) badge.textContent = onlineCount > 0 ? onlineCount : '0';
+  }catch(e){}
+}
+
+function _applyConnectorStatus(name, st){
+  const dot   = document.getElementById(`cdot-${name}`);
+  const evtEl = document.getElementById(`cevt-${name}`);
+  const lastEl= document.getElementById(`clast-${name}`);
+  const tglBtn= document.getElementById(`ctgl-${name}`);
+  const errEl = document.getElementById(`cerr-${name}`);
+
+  if(dot){
+    dot.className = 'cc-dot ' + (st.online ? 'online' : (st.enabled ? 'warn' : 'offline'));
+  }
+  if(evtEl) evtEl.textContent = `${st.events_total} eventos`;
+  if(lastEl){
+    lastEl.textContent = st.last_event_at
+      ? `Último: ${new Date(st.last_event_at*1000).toLocaleTimeString()}`
+      : '—';
+  }
+  if(tglBtn){
+    const isEnabled = st.enabled;
+    tglBtn.textContent = isEnabled ? t('cc-btn-disable') : t('cc-btn-enable');
+    tglBtn.className   = isEnabled ? 'cc-btn cc-tgl active' : 'cc-btn cc-tgl';
+  }
+  if(errEl && st.error){
+    errEl.style.display = 'block';
+    errEl.style.color   = 'var(--warn)';
+    errEl.textContent   = `⚠ ${st.error}`;
+  } else if(errEl && !st.error){
+    errEl.style.display = 'none';
+  }
+  // Rellenar campos de config solo si el usuario no los ha tocado aún
+  if(st.config){
+    for(const [k,v] of Object.entries(st.config)){
+      const field = document.getElementById(`cfi-${name}-${k}`);
+      if(!field || field._dirty) continue;
+      if(field.type==='checkbox') field.checked = !!v;
+      else if(field.type!=='password' || !v || v==='***') { if(v!=='***') field.value=v; }
+      else field.value = v;
+    }
+  }
+  // Marcar campos como editados por el usuario para no sobrescribirlos
+  document.querySelectorAll(`[id^="cfi-${name}-"]`).forEach(f=>{
+    if(!f._listenerAdded){
+      f.addEventListener('input',()=>{ f._dirty=true; });
+      f._listenerAdded=true;
+    }
+  });
+}
+
+async function toggleConnector(name){
+  if(!TOKEN) return;
+  try{
+    await fetch(`/connectors/${name}/toggle`,{
+      method:'POST',
+      headers:{Authorization:`Bearer ${TOKEN}`}
+    });
+    await loadConnectors();
+  }catch(e){}
+}
+
+async function testConnector(name){
+  if(!TOKEN) return;
+  const btn = document.getElementById(`ctest-${name}`);
+  if(btn) btn.textContent='…';
+  const errEl = document.getElementById(`cerr-${name}`);
+  try{
+    const r = await fetch(`/connectors/${name}/test`,{headers:{Authorization:`Bearer ${TOKEN}`}});
+    const data = await r.json();
+    if(errEl){
+      errEl.style.display='block';
+      errEl.style.color = data.ok ? 'var(--ok)' : 'var(--warn)';
+      errEl.textContent = data.ok ? `✓ ${data.message}` : `✗ ${data.message}`;
+    }
+  }catch(e){
+    if(errEl){ errEl.style.display='block'; errEl.style.color='var(--warn)'; errEl.textContent='✗ Error de red'; }
+  }finally{
+    if(btn) btn.textContent = t('cc-btn-test')||'Probar';
+  }
+}
+
+async function saveConnectorConfig(name){
+  if(!TOKEN) return;
+  const config={};
+  document.querySelectorAll(`[id^="cfi-${name}-"]`).forEach(f=>{
+    const key = f.id.replace(`cfi-${name}-`,'');
+    if(f.type==='checkbox')    config[key] = f.checked;
+    else if(f.type==='number') config[key] = Number(f.value)||0;
+    else if(f.value!=='')      config[key] = f.value;
+  });
+  const errEl = document.getElementById(`cerr-${name}`);
+  try{
+    const r = await fetch(`/connectors/${name}/config`,{
+      method:'POST',
+      headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json'},
+      body:JSON.stringify(config)
+    });
+    if(errEl){
+      const ok = r.ok;
+      errEl.style.display='block';
+      errEl.style.color = ok ? 'var(--ok)' : 'var(--warn)';
+      errEl.textContent = ok ? '✓ Configuración guardada' : '✗ Error al guardar';
+      if(ok) setTimeout(()=>{ errEl.style.display='none'; },3000);
+    }
+    await loadConnectors();
+  }catch(e){
+    if(errEl){ errEl.style.display='block'; errEl.style.color='var(--warn)'; errEl.textContent='✗ Error de red'; }
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -980,6 +1257,9 @@ function startSession(){
   IDs.es = setInterval(pollEsc, 5000);
   pollMetrics(); pollHealth(); pollHyps(); pollEsc();
   pbBridgeStart = Date.now();
+  // Conectores: carga inicial + polling cada 15s
+  loadConnectors();
+  _connectorInterval = setInterval(loadConnectors, 15000);
 }
 
 // ════════════════════════════════════════════════════════════════════════════

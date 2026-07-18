@@ -39,6 +39,7 @@ from pydantic import BaseModel
 from pantheon.acme.feedback_auth import (
     AuthError,
     SignedFeedback,
+    create_operator_token,
     decode_operator_token,
 )
 from pantheon.core.config import settings
@@ -107,8 +108,8 @@ def _classify_attack(verdict: str, cci: float, guard_verdict: str) -> str:
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     client_ip = request.client.host if request.client else "unknown"
-    # Eximir /health y /metrics del rate limiting
-    if request.url.path in ("/health", "/metrics", "/ornith/ingest"):
+    # Eximir /health, /metrics, /token y /ornith/ingest del rate limiting
+    if request.url.path in ("/health", "/metrics", "/ornith/ingest", "/token"):
         return await call_next(request)
     if not _rate_limiter.is_allowed(client_ip):
         RATE_LIMITED_REQUESTS.inc()
@@ -176,6 +177,31 @@ def _get_operator(authorization: str = Header(...)) -> str:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "pantheon", "version": "2.1.0"}
+
+
+class TokenRequest(BaseModel):
+    operator_id: str
+    expire_hours: int = 8
+
+
+@app.post("/token", summary="Generar JWT de operador")
+def create_token(req: TokenRequest) -> dict:
+    """Genera un JWT firmado para autenticar al operador en todos los endpoints.
+
+    No requiere autenticación previa — es el punto de entrada para nuevos usuarios.
+    El `operator_id` identifica al analista en el Audit Trail y en Acme Ranker.
+    """
+    token = create_operator_token(
+        req.operator_id,
+        settings.pantheon_jwt_secret,
+        expire_hours=req.expire_hours,
+    )
+    return {
+        "token": token,
+        "operator_id": req.operator_id,
+        "expire_hours": req.expire_hours,
+        "usage": f"Authorization: Bearer {token}",
+    }
 
 
 @app.post("/ornith/ingest", status_code=status.HTTP_201_CREATED)
@@ -496,6 +522,60 @@ def metrics() -> PlainTextResponse:
         content=generate_latest().decode("utf-8"),
         media_type=CONTENT_TYPE_LATEST,
     )
+
+
+# ── Connectores (Suricata / Wazuh) ───────────────────────────────────────────
+
+class ConnectorConfigRequest(BaseModel):
+    eve_json_path: Optional[str] = None
+    api_url: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    poll_interval_secs: Optional[int] = None
+    stale_threshold_secs: Optional[int] = None
+    min_rule_level: Optional[int] = None
+    verify_ssl: Optional[bool] = None
+
+
+@app.get("/connectors", summary="Estado de conectores Suricata / Wazuh")
+def list_connectors(operator_id: str = Depends(_get_operator)) -> dict:
+    from dataclasses import asdict
+    from pantheon.connectors.manager import get_connector_manager
+    mgr = get_connector_manager()
+    return {"connectors": {n: asdict(s) for n, s in mgr.get_all_status().items()}}
+
+
+@app.post("/connectors/{name}/config", summary="Guardar config de conector")
+def update_connector_config(
+    name: str,
+    req: ConnectorConfigRequest,
+    operator_id: str = Depends(_get_operator),
+) -> dict:
+    from pantheon.connectors.manager import get_connector_manager
+    mgr = get_connector_manager()
+    config = {k: v for k, v in req.model_dump().items() if v is not None}
+    try:
+        mgr.update_config(name, config)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    return {"saved": True, "name": name}
+
+
+@app.post("/connectors/{name}/toggle", summary="Habilitar / deshabilitar conector")
+def toggle_connector(name: str, operator_id: str = Depends(_get_operator)) -> dict:
+    from pantheon.connectors.manager import get_connector_manager
+    mgr = get_connector_manager()
+    try:
+        enabled = mgr.toggle(name)
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    return {"name": name, "enabled": enabled}
+
+
+@app.get("/connectors/{name}/test", summary="Probar conexión al origen")
+def test_connector(name: str, operator_id: str = Depends(_get_operator)) -> dict:
+    from pantheon.connectors.manager import get_connector_manager
+    return get_connector_manager().test(name)
 
 
 # ── Knowledge Exchange ────────────────────────────────────────────────────────

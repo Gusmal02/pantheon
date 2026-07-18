@@ -33,7 +33,9 @@ param(
 )
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
+# "Continue" en lugar de "Stop": los errores reales se verifican con $LASTEXITCODE.
+# "Stop" convierte stderr de ejecutables nativos (docker, psql) en error terminante en PS 5.1.
+$ErrorActionPreference = "Continue"
 
 # ── Colores ───────────────────────────────────────────────────────────────────
 function Write-Step  { param($msg) Write-Host "  $msg"            -ForegroundColor Cyan    }
@@ -75,7 +77,7 @@ $PG_PORT = if ($env:POSTGRES_PORT)     { $env:POSTGRES_PORT }     else { "5432" 
 
 # ── 1. Red Docker ─────────────────────────────────────────────────────────────
 Write-Title "[ 1/5 ] Red Docker"
-$netExists = docker network ls --format "{{.Name}}" 2>$null | Where-Object { $_ -eq "pantheon-net" }
+$netExists = docker network ls --format "{{.Name}}" | Where-Object { $_ -eq "pantheon-net" }
 if (-not $netExists) {
     Write-Step "Creando red pantheon-net…"
     docker network create pantheon-net | Out-Null
@@ -102,8 +104,8 @@ if ($SkipInfra) {
     do {
         Start-Sleep -Seconds 2
         $attempts++
-        $ready = docker exec pantheon-postgres pg_isready -U $PG_USER -q 2>$null
-        $pgReady = ($LASTEXITCODE -eq 0)
+        docker exec pantheon-postgres pg_isready -U $PG_USER -q | Out-Null
+        $pgReady = ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq $null)
         if (-not $pgReady -and $attempts -lt $maxAttempts) {
             Write-Host "    ... intento $attempts/$maxAttempts" -ForegroundColor DarkGray
         }
@@ -125,17 +127,21 @@ if (-not $needInit) {
     Write-Step "Verificando schema…"
     $env:PGPASSWORD = $PG_PASS
     $tableCount = docker exec pantheon-postgres psql -U $PG_USER -d $PG_DB -tAc `
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='audit_trail'" 2>$null
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='audit_trail'"
     $needInit = ($tableCount -ne "1")
 }
 
 if ($needInit) {
     Write-Step "Inicializando schema de BD…"
-    & uv run python scripts/init_db.py
-    if ($LASTEXITCODE -ne 0) { Write-Fail "init_db.py falló"; exit 1 }
+    # Copia el SQL al contenedor y lo ejecuta con psql — sin TCP al host (funciona en WSL2/Windows).
+    $schemaFile = Join-Path $PSScriptRoot "scripts\schema.sql"
+    docker cp $schemaFile pantheon-postgres:/tmp/pantheon_schema.sql
+    if ($LASTEXITCODE -ne 0) { Write-Fail "docker cp falló"; exit 1 }
+    docker exec pantheon-postgres psql -U $PG_USER -d $PG_DB -f /tmp/pantheon_schema.sql -q
+    if ($LASTEXITCODE -ne 0) { Write-Fail "Schema SQL falló"; exit 1 }
     Write-OK "Schema creado"
 } else {
-    Write-OK "Schema ya existe — omitiendo init_db.py (usa -InitDb para forzar)"
+    Write-OK "Schema ya existe — omitiendo init (usa -InitDb para forzar)"
 }
 
 # ── 4. Dependencias ───────────────────────────────────────────────────────────

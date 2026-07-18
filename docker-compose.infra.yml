@@ -4,8 +4,7 @@
 
 networks:
   pantheon-net:
-    name: pantheon-net
-    driver: bridge
+    external: true
 
 volumes:
   qdrant_data:
@@ -16,8 +15,8 @@ services:
     image: qdrant/qdrant:v1.13.6
     container_name: pantheon-qdrant
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "6335:6333"
+      - "6336:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
@@ -53,7 +52,7 @@ services:
     image: redis:7-alpine
     container_name: pantheon-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - pantheon-net
     restart: unless-stopped
