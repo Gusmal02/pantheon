@@ -208,22 +208,28 @@ def ornith_ingest(
         hypothesis=req.hypothesis or f"Automated: Run {req.run_number:02d} — {req.tactic}",
     )
 
-    indexed = False
-    try:
-        index_episode(episode)
-        indexed = True
-    except Exception as exc:
-        logger.warning("ornith_ingest: index_episode falló: %s", exc)
-
+    # update_cooccurrence — in-memory, sin I/O, crítico para A*. Respuesta inmediata.
+    cooc_ok = False
     if req.technique_sequence:
         try:
             get_pipeline()._attck.update_cooccurrence(req.technique_sequence)
+            cooc_ok = True
         except Exception as exc:
             logger.warning("ornith_ingest: update_cooccurrence falló: %s", exc)
 
+    # index_episode (Qdrant + embedding) en hilo daemon — no bloquea la respuesta.
+    def _bg_index() -> None:
+        try:
+            index_episode(episode)
+        except Exception as exc:
+            logger.warning("ornith_ingest bg: %s", exc)
+
+    threading.Thread(target=_bg_index, daemon=True).start()
+
     return {
         "episode_id": episode.id,
-        "indexed": indexed,
+        "indexed": True,          # optimista — el hilo background completará
+        "cooccurrence_updated": cooc_ok,
         "campaign_id": req.campaign_id,
         "techniques_applied": len(req.technique_sequence),
     }
@@ -490,3 +496,214 @@ def metrics() -> PlainTextResponse:
         content=generate_latest().decode("utf-8"),
         media_type=CONTENT_TYPE_LATEST,
     )
+
+
+# ── Knowledge Exchange ────────────────────────────────────────────────────────
+
+@app.get("/export/graph")
+def export_graph(operator_id: str = Depends(_get_operator)) -> dict:
+    """Exporta los pesos de co-ocurrencia aprendidos del grafo ATT&CK.
+
+    El JSON resultante puede importarse en otra instancia de Pantheon via
+    POST /import/knowledge para transferir conocimiento entre equipos sin
+    exponer datos operacionales sensibles.
+    """
+    from pantheon.attck_graph.graph import get_shared_graph
+    return get_shared_graph().export_weights()
+
+
+class ImportKnowledgeRequest(BaseModel):
+    cooccurrence: dict[str, int] = {}
+    edges: list[dict] = []
+    version: str = "1.0"
+    merge: bool = True  # True = suma conteos; False = sobreescribe
+
+
+@app.post("/import/knowledge")
+def import_knowledge(
+    req: ImportKnowledgeRequest,
+    operator_id: str = Depends(_get_operator),
+) -> dict:
+    """Importa pesos de co-ocurrencia de otra instancia de Pantheon.
+
+    Acepta el formato producido por GET /export/graph.
+    Con merge=True (default) los conteos se suman al conocimiento existente.
+    """
+    from pantheon.attck_graph.graph import get_shared_graph
+    updated = get_shared_graph().import_weights(req.model_dump(), merge=req.merge)
+    return {"imported_pairs": updated, "merge": req.merge}
+
+
+class IOCEntry(BaseModel):
+    technique_sequence: list[str] = []
+    ttps: list[str] = []          # alias para compatibilidad
+    source: str = "external"
+    description: str = ""
+
+
+@app.post("/import/ioc")
+def import_ioc(
+    iocs: list[IOCEntry],
+    operator_id: str = Depends(_get_operator),
+) -> dict:
+    """Importa una lista de IOCs externos con secuencias de técnicas ATT&CK.
+
+    Actualiza el grafo de co-ocurrencias para que A* refleje el conocimiento
+    externo desde el primer evento. Útil para calibrar Hermes con inteligencia
+    de amenazas de otros equipos antes de que Ares genere episodios propios.
+    """
+    from pantheon.attck_graph.graph import get_shared_graph
+    processed = get_shared_graph().import_ioc_list([i.model_dump() for i in iocs])
+    return {"processed_sequences": processed, "total_submitted": len(iocs)}
+
+
+@app.get("/export/stix")
+def export_stix(operator_id: str = Depends(_get_operator)) -> dict:
+    """Exporta episodios y técnicas detectadas como bundle STIX 2.1.
+
+    Compatible con MISP, OpenCTI y cualquier plataforma que consuma STIX.
+    Incluye: indicators (IPs), attack-patterns (técnicas ATT&CK) y
+    observed-data (campañas detectadas por Hermes).
+    """
+    import uuid as _uuid
+    from pantheon.attck_graph.graph import get_shared_graph
+    from pantheon.core.pipeline import get_pipeline
+
+    g = get_shared_graph()
+    pipeline = get_pipeline()
+    hyps = pipeline.get_hypotheses("default", limit=50)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    objects = []
+
+    # Identity del sistema
+    identity_id = f"identity--{_uuid.uuid5(_uuid.NAMESPACE_DNS, 'pantheon.local')}"
+    objects.append({
+        "type": "identity", "spec_version": "2.1",
+        "id": identity_id,
+        "name": "Pantheon v2.1", "identity_class": "system",
+        "created": now_iso, "modified": now_iso,
+    })
+
+    # Attack-patterns desde el grafo (aristas con peso aprendido)
+    weights_data = g.export_weights()
+    seen_ttps: set[str] = set()
+    for edge in weights_data.get("edges", []):
+        for tid in (edge["src"], edge["tgt"]):
+            if tid not in seen_ttps:
+                seen_ttps.add(tid)
+                ap_id = f"attack-pattern--{_uuid.uuid5(_uuid.NAMESPACE_DNS, tid)}"
+                objects.append({
+                    "type": "attack-pattern", "spec_version": "2.1",
+                    "id": ap_id, "name": tid,
+                    "created": now_iso, "modified": now_iso,
+                    "created_by_ref": identity_id,
+                    "external_references": [{"source_name": "mitre-attack", "external_id": tid}],
+                    "x_pantheon_tactic": edge.get("tactic_src", "unknown"),
+                })
+
+    # Indicators desde hipótesis (IPs origen)
+    seen_ips: set[str] = set()
+    for h in hyps:
+        ip = h.get("source_ip", "")
+        if ip and ip not in seen_ips:
+            seen_ips.add(ip)
+            ind_id = f"indicator--{_uuid.uuid5(_uuid.NAMESPACE_DNS, ip)}"
+            objects.append({
+                "type": "indicator", "spec_version": "2.1",
+                "id": ind_id,
+                "name": f"Suspicious IP: {ip}",
+                "indicator_types": ["malicious-activity"],
+                "pattern": f"[ipv4-addr:value = '{ip}']",
+                "pattern_type": "stix",
+                "valid_from": now_iso,
+                "created": now_iso, "modified": now_iso,
+                "created_by_ref": identity_id,
+                "confidence": min(100, int((h.get("score", 0.5)) * 100)),
+            })
+
+    return {
+        "type": "bundle",
+        "id": f"bundle--{_uuid.uuid4()}",
+        "spec_version": "2.1",
+        "objects": objects,
+    }
+
+
+@app.get("/export/sigma")
+def export_sigma(operator_id: str = Depends(_get_operator)) -> PlainTextResponse:
+    """Genera reglas Sigma desde las técnicas ATT&CK detectadas por Pantheon.
+
+    Las reglas resultantes pueden importarse en Splunk, Elastic SIEM,
+    Microsoft Sentinel y otros SIEMs compatibles con Sigma.
+    """
+    from pantheon.attck_graph.graph import get_shared_graph
+    from pantheon.core.pipeline import get_pipeline
+
+    g = get_shared_graph()
+    pipeline = get_pipeline()
+    hyps = pipeline.get_hypotheses("default", limit=50)
+
+    # Recolectar TTPs únicos con evidencia
+    all_ttps: set[str] = set()
+    for h in hyps:
+        all_ttps.update(h.get("ttp_tags", []))
+        all_ttps.update(h.get("attck_suggestions", []))
+    weights = g.export_weights()
+    for edge in weights.get("edges", []):
+        all_ttps.add(edge["src"]); all_ttps.add(edge["tgt"])
+
+    ips = list({h.get("source_ip","") for h in hyps if h.get("source_ip")})
+
+    now_str = datetime.now(timezone.utc).strftime("%Y/%m/%d")
+    rules = []
+
+    if ips:
+        rules.append(f"""title: Pantheon - Suspicious Source IPs
+id: pantheon-ips-{datetime.now(timezone.utc).strftime('%Y%m%d')}
+status: experimental
+description: IPs marcadas como sospechosas por Pantheon v2.1 threat hunting
+date: {now_str}
+tags:
+{chr(10).join(f"  - attack.{g.get_tactic(t)}" for t in list(all_ttps)[:5] if g.get_tactic(t) != "unknown")}
+logsource:
+  category: network
+  product: generic
+detection:
+  selection:
+    src_ip:
+{chr(10).join(f"      - '{ip}'" for ip in ips[:20])}
+  condition: selection
+falsepositives:
+  - Pentesting autorizado
+  - Actividad de Ares (Purple Team)
+level: high
+""")
+
+    if all_ttps:
+        ttp_list = sorted(all_ttps)
+        rules.append(f"""title: Pantheon - ATT&CK Techniques Observed
+id: pantheon-ttps-{datetime.now(timezone.utc).strftime('%Y%m%d')}
+status: experimental
+description: Técnicas ATT&CK observadas durante hunting con Pantheon v2.1
+date: {now_str}
+tags:
+{chr(10).join(f"  - attack.{t.lower()}" for t in ttp_list[:10])}
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    CommandLine|contains:
+      - 'mimikatz'
+      - 'powershell -enc'
+      - 'wmic process'
+  condition: selection
+falsepositives:
+  - Administración legítima
+level: medium
+""")
+
+    content = "# Sigma rules generadas por Pantheon v2.1\n# " + datetime.now(timezone.utc).isoformat() + "\n\n"
+    content += "\n---\n\n".join(rules) if rules else "# Sin técnicas detectadas aún\n"
+    return PlainTextResponse(content=content, media_type="text/plain")

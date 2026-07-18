@@ -3,821 +3,1557 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-/* ── Tokens ──────────────────────────────────────────────────────────────── */
+/* ── Design tokens ────────────────────────────────────────────────────────── */
 :root {
-  --bg:        #0a0d12;
-  --surface:   #111620;
-  --surface2:  #161d2b;
-  --border:    #1d2535;
-  --border2:   #253045;
-  --text:      #c8d4e8;
-  --dim:       #4a5a72;
-  --accent:    #00e5ff;
-  --accent-d:  #007a8c;
-  --ok:        #22c55e;
-  --warn:      #f0b429;
-  --crit:      #ff4444;
-  --purple:    #a855f7;
-  --mono:      "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace;
+  --bg:       #06080d;
+  --surface:  #0d1117;
+  --surface2: #131b27;
+  --border:   #1a2235;
+  --border2:  #223048;
+  --text:     #c8d4e8;
+  --dim:      #4a5a72;
+  --dim2:     #334055;
+  --accent:   #00d4ff;
+  --accent-d: #0088aa;
+  --accent-g: rgba(0,212,255,0.12);
+  --ok:       #22c55e;
+  --warn:     #f0b429;
+  --crit:     #ff4444;
+  --purple:   #a855f7;
+  --mono:     "JetBrains Mono","Cascadia Code","Fira Code",ui-monospace,monospace;
 }
 
 /* ── Reset ───────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.5}
+button{cursor:pointer;font-family:var(--mono)}
+input,textarea{font-family:var(--mono)}
 
-/* ── Layout ──────────────────────────────────────────────────────────────── */
-#app { display: flex; flex-direction: column; height: 100vh; }
+/* ── App shell ───────────────────────────────────────────────────────────── */
+#app{display:flex;flex-direction:column;height:100vh}
 
-/* Top bar */
-#topbar {
-  display: flex; align-items: center; gap: 16px; padding: 0 20px;
-  height: 48px; background: var(--surface); border-bottom: 1px solid var(--border);
-  flex-shrink: 0; position: relative; z-index: 10;
+/* ── Topbar ──────────────────────────────────────────────────────────────── */
+#topbar{
+  display:flex;align-items:center;gap:14px;padding:0 20px;
+  height:48px;background:var(--surface);border-bottom:2px solid var(--accent-d);
+  flex-shrink:0;position:relative;z-index:10
 }
-#system-name {
-  font-size: 14px; font-weight: 700; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--accent); flex-shrink: 0;
+#logo{display:flex;align-items:center;gap:9px;flex-shrink:0}
+#logo svg{flex-shrink:0;filter:drop-shadow(0 0 6px var(--accent))}
+#system-name{
+  font-size:15px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--accent);text-shadow:0 0 18px rgba(0,212,255,.7)
 }
-.topbar-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
-#status-pill {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 11px; letter-spacing: .08em; text-transform: uppercase; flex-shrink: 0;
-}
-.status-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--ok); box-shadow: 0 0 6px var(--ok);
-  animation: pulse-ok 2s ease-in-out infinite;
-}
-.status-dot.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); animation: pulse-warn 1s ease-in-out infinite; }
-.status-dot.crit { background: var(--crit); box-shadow: 0 0 6px var(--crit); animation: pulse-crit .5s ease-in-out infinite; }
-@keyframes pulse-ok   { 0%,100%{opacity:1} 50%{opacity:.5} }
-@keyframes pulse-warn { 0%,100%{opacity:1} 50%{opacity:.4} }
-@keyframes pulse-crit { 0%,100%{opacity:1} 50%{opacity:.3} }
+.tsep{width:1px;height:24px;background:var(--border);flex-shrink:0}
+#status-pill{display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;flex-shrink:0}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 7px var(--ok);animation:p-ok 2s ease-in-out infinite}
+.sdot.warn{background:var(--warn);box-shadow:0 0 7px var(--warn);animation:p-warn 1s ease-in-out infinite}
+.sdot.crit{background:var(--crit);box-shadow:0 0 7px var(--crit);animation:p-crit .5s ease-in-out infinite}
+@keyframes p-ok  {0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes p-warn{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes p-crit{0%,100%{opacity:1}50%{opacity:.25}}
 
-#counters { display: flex; gap: 0; flex: 1; justify-content: center; }
-.counter {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 0 18px; border-right: 1px solid var(--border);
-  min-width: 90px;
-}
-.counter:first-child { border-left: 1px solid var(--border); }
-.counter-val {
-  font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
-  line-height: 1.2; color: var(--text);
-}
-.counter-val.red { color: var(--crit); }
-.counter-val.yellow { color: var(--warn); }
-.counter-val.cyan { color: var(--accent); }
-.counter-val.purple { color: var(--purple); }
-.counter-label { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+#counters{display:flex;gap:0;flex:1;justify-content:center}
+.ctr{display:flex;flex-direction:column;align-items:center;padding:0 16px;border-right:1px solid var(--border);min-width:84px}
+.ctr:first-child{border-left:1px solid var(--border)}
+.cv{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.cv.red{color:var(--crit)} .cv.cyan{color:var(--accent)} .cv.yel{color:var(--warn)} .cv.pur{color:var(--purple)}
+.cl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 
-#topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-#last-update { font-size: 10px; color: var(--dim); }
+#topbar-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+#last-upd{font-size:10px;color:var(--dim)}
+#lang-btn{
+  padding:3px 10px;border:1px solid var(--border2);background:transparent;
+  color:var(--dim);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  transition:all .15s
+}
+#lang-btn:hover{border-color:var(--accent);color:var(--accent)}
+#ks-btn{
+  padding:6px 16px;background:var(--crit);color:#fff;font-size:11px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;border:none;
+  box-shadow:0 0 12px rgba(255,68,68,.4);transition:all .15s
+}
+#ks-btn:hover{background:#ff2222;box-shadow:0 0 20px rgba(255,68,68,.6)}
 
-/* Token overlay */
-#token-overlay {
-  position: fixed; inset: 0; background: rgba(10,13,18,.96);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 100;
+/* ── Tab navigation ──────────────────────────────────────────────────────── */
+#tabbar{
+  display:flex;align-items:center;gap:0;height:36px;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  flex-shrink:0;padding:0 12px;overflow-x:auto
 }
-#token-box {
-  background: var(--surface); border: 1px solid var(--border2);
-  padding: 32px 40px; width: 560px; max-width: 90vw;
+#tabbar::-webkit-scrollbar{display:none}
+.tab{
+  display:flex;align-items:center;gap:6px;padding:0 16px;height:100%;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);border-bottom:2px solid transparent;border-top:2px solid transparent;
+  cursor:pointer;background:transparent;border-left:none;border-right:none;
+  transition:all .15s;white-space:nowrap;flex-shrink:0
 }
-#token-box h2 { font-size: 16px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 20px; }
-#token-box p { color: var(--dim); font-size: 12px; margin-bottom: 16px; }
-#token-input {
-  width: 100%; background: var(--bg); border: 1px solid var(--border2);
-  color: var(--text); font-family: var(--mono); font-size: 12px;
-  padding: 10px 12px; outline: none;
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-badge{
+  font-size:9px;background:var(--border2);color:var(--dim);
+  padding:1px 6px;border-radius:20px;font-variant-numeric:tabular-nums
 }
-#token-input:focus { border-color: var(--accent); }
-#token-btn {
-  margin-top: 12px; padding: 10px 24px; background: var(--accent);
-  color: #000; font-family: var(--mono); font-size: 12px; font-weight: 700;
-  letter-spacing: .08em; text-transform: uppercase; border: none; cursor: pointer;
-}
-#token-btn:hover { background: #33eeff; }
-#token-error { margin-top: 10px; color: var(--crit); font-size: 11px; min-height: 16px; }
+.tab.active .tab-badge{background:var(--accent-d);color:var(--accent)}
 
-/* Main 3-column grid */
-#main {
-  display: grid;
-  grid-template-columns: 1fr 260px 1fr;
-  gap: 0;
-  flex: 1;
-  min-height: 0;
-  border-bottom: 1px solid var(--border);
-}
+/* ── Tab panels ──────────────────────────────────────────────────────────── */
+.tabpanel{display:none;flex:1;min-height:0;overflow:hidden}
+.tabpanel.active{display:flex}
 
-/* Panel base */
-.panel {
-  display: flex; flex-direction: column;
-  border-right: 1px solid var(--border);
-  overflow: hidden;
+/* ── Shared panel primitives ─────────────────────────────────────────────── */
+.pane{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
+.pane:last-child{border-right:none}
+.ph{
+  display:flex;align-items:center;gap:8px;padding:9px 14px;
+  border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0
 }
-.panel:last-child { border-right: none; }
-.panel-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 16px; border-bottom: 1px solid var(--border);
-  background: var(--surface); flex-shrink: 0;
+.pt{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.pb-badge{
+  margin-left:auto;font-size:10px;background:var(--border);color:var(--dim);
+  padding:1px 7px;border-radius:20px
 }
-.panel-title { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
-.panel-badge {
-  margin-left: auto; font-size: 10px; font-variant-numeric: tabular-nums;
-  background: var(--border); color: var(--dim); padding: 1px 7px; border-radius: 20px;
+.pb{flex:1;overflow-y:auto;overflow-x:hidden}
+.pb::-webkit-scrollbar{width:3px}
+.pb::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.empty{padding:28px 14px;text-align:center;color:var(--dim);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.act-row{display:flex;gap:6px;padding:6px 14px;border-bottom:1px solid var(--border);background:var(--bg)}
+.ab{
+  padding:3px 10px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid var(--border2);background:transparent;color:var(--dim);
+  transition:all .15s
 }
-.panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
-.panel-body::-webkit-scrollbar { width: 4px; }
-.panel-body::-webkit-scrollbar-track { background: transparent; }
-.panel-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.ab:hover{border-color:var(--accent);color:var(--accent)}
+.ab.green:hover{border-color:var(--ok);color:var(--ok)}
+.ab.red-h:hover{border-color:var(--crit);color:var(--crit)}
+.ab.pur-h:hover{border-color:var(--purple);color:var(--purple)}
 
-/* ── Center panel — CCI Radar ─────────────────────────────────────────────── */
-#center-panel { background: var(--bg); border-right: 1px solid var(--border); }
-#radar-wrap {
-  flex: 1; display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 16px; padding: 16px 0;
-}
-#cci-canvas { display: block; }
-#threat-level {
-  text-align: center; font-size: 11px; letter-spacing: .15em;
-  text-transform: uppercase; color: var(--dim);
-}
-#threat-label {
-  font-size: 22px; font-weight: 700; letter-spacing: .06em;
-  text-transform: uppercase; margin-top: 4px;
-}
-#cci-value { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
-#cci-unit { font-size: 11px; color: var(--dim); margin-top: 2px; }
+/* ── TAB 1: Mission Control ──────────────────────────────────────────────── */
+#tab-mc{display:grid;grid-template-columns:1fr 240px 1fr}
 
-/* Sparkline row below radar */
-#sparkline-row {
-  display: flex; gap: 0; border-top: 1px solid var(--border); flex-shrink: 0;
+/* Feed table */
+.feed-tbl{width:100%;border-collapse:collapse}
+.feed-tbl thead th{
+  padding:5px 11px;text-align:left;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--border);
+  background:var(--surface);position:sticky;top:0
 }
-.spark-cell {
-  flex: 1; padding: 8px 12px; border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; align-items: center;
-}
-.spark-cell:last-child { border-right: none; }
-.spark-label { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); margin-bottom: 4px; }
-.spark-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.feed-tbl tbody tr{border-bottom:1px solid var(--border);transition:background .12s}
+.feed-tbl tbody tr:hover{background:var(--surface2)}
+.feed-tbl tbody td{padding:5px 11px;font-size:12px}
+.fnew{animation:flash .7s ease}
+@keyframes flash{0%{background:rgba(0,212,255,.14)}100%{background:transparent}}
+.cval{font-variant-numeric:tabular-nums;font-weight:700}
 
-/* ── Left panel — Event Feed ──────────────────────────────────────────────── */
-#feed-table { width: 100%; border-collapse: collapse; }
-#feed-table thead th {
-  padding: 6px 12px; text-align: left; font-size: 9px;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
-  border-bottom: 1px solid var(--border); background: var(--surface);
-  position: sticky; top: 0;
-}
-#feed-table tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
-#feed-table tbody tr:hover { background: var(--surface2); }
-#feed-table tbody td { padding: 6px 12px; font-size: 12px; }
-.feed-new { animation: flash-row .6s ease; }
-@keyframes flash-row { 0%{background:rgba(0,229,255,.12)} 100%{background:transparent} }
-.cci-cell { font-variant-numeric: tabular-nums; font-weight: 700; }
+/* Attack chips */
+.chip{display:inline-block;padding:1px 7px;border-radius:3px;font-size:10px;letter-spacing:.06em;font-weight:700;text-transform:uppercase;white-space:nowrap}
+.ch-inj{background:rgba(255,68,68,.18);color:#ff8080;border:1px solid rgba(255,68,68,.3)}
+.ch-qua{background:rgba(240,180,41,.15);color:var(--warn);border:1px solid rgba(240,180,41,.3)}
+.ch-cri{background:rgba(255,68,68,.22);color:var(--crit);border:1px solid rgba(255,68,68,.4)}
+.ch-mod{background:rgba(240,180,41,.15);color:var(--warn);border:1px solid rgba(240,180,41,.3)}
+.ch-nor{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.ch-are{background:rgba(168,85,247,.18);color:#c084fc;border:1px solid rgba(168,85,247,.35)}
+.vb{color:var(--crit);font-weight:700} .vq{color:var(--warn);font-weight:700} .vp{color:var(--dim)}
 
-/* Attack type chips */
-.chip {
-  display: inline-block; padding: 1px 8px; border-radius: 3px;
-  font-size: 10px; letter-spacing: .06em; font-weight: 700; text-transform: uppercase;
-  white-space: nowrap;
+/* CCI Radar center */
+#center-mc{background:var(--bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#radar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px 0}
+#cci-canvas{display:block}
+#threat-lv{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);text-align:center}
+#threat-lb{font-size:20px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;text-align:center;margin-top:2px}
+#dash-btn{
+  margin:0 16px 10px;padding:7px 14px;border:1px solid var(--accent-d);
+  background:var(--accent-g);color:var(--accent);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;transition:all .15s
 }
-.chip-injection    { background: rgba(255,68,68,.18);  color: #ff8080; border: 1px solid rgba(255,68,68,.3); }
-.chip-quarantine   { background: rgba(240,180,41,.15); color: #f0b429; border: 1px solid rgba(240,180,41,.3); }
-.chip-critical     { background: rgba(255,68,68,.22);  color: var(--crit); border: 1px solid rgba(255,68,68,.4); }
-.chip-moderate     { background: rgba(240,180,41,.15); color: var(--warn); border: 1px solid rgba(240,180,41,.3); }
-.chip-normal       { background: rgba(34,197,94,.12);  color: #4ade80; border: 1px solid rgba(34,197,94,.25); }
-.chip-ares         { background: rgba(168,85,247,.18); color: #c084fc; border: 1px solid rgba(168,85,247,.35); }
+#dash-btn:hover{background:rgba(0,212,255,.2);border-color:var(--accent)}
+#spark-row{display:flex;border-top:1px solid var(--border);flex-shrink:0}
+.sc{flex:1;padding:7px 10px;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center}
+.sc:last-child{border-right:none}
+.sl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-bottom:3px}
+.sv{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
 
-.verdict-block     { color: var(--crit); font-weight: 700; }
-.verdict-quarantine{ color: var(--warn); font-weight: 700; }
-.verdict-pass      { color: var(--dim); }
+/* Hypotheses + Escalations */
+#right-mc{display:flex;flex-direction:column}
+#hyp-sec{flex:1;display:flex;flex-direction:column;border-bottom:1px solid var(--border);min-height:0}
+#esc-sec{flex:1;display:flex;flex-direction:column;min-height:0}
+.hi{padding:9px 13px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:3px}
+.hi:hover{background:var(--surface2)}
+.hm{display:flex;align-items:center;gap:7px}
+.hr{font-size:9px;color:var(--dim)} .hs{font-size:11px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums} .hip{font-size:10px;color:var(--dim)}
+.ht{font-size:12px;color:var(--text);line-height:1.35}
+.ha{display:flex;gap:4px;margin-top:4px}
+.ha button{padding:2px 7px;font-size:9px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--border2);background:transparent;color:var(--dim);transition:all .12s}
+.ha button:hover{border-color:var(--accent);color:var(--accent)}
+.ha button.red-btn:hover{border-color:var(--crit);color:var(--crit)}
+.ei{padding:9px 13px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
+.ei:hover{background:var(--surface2)}
+.eh{display:flex;align-items:center;gap:8px}
+.esev{font-size:10px;font-weight:700;text-transform:uppercase}
+.s-crit{color:var(--crit)} .s-high{color:var(--warn)} .s-med{color:#60a5fa}
+.eip{font-size:11px;color:var(--text);font-variant-numeric:tabular-nums}
+.ettps{font-size:10px;color:var(--dim)}
+.enarr{font-size:11px;color:var(--dim);line-height:1.35;margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
-/* ── Right panel — split into hypotheses + escalations ───────────────────── */
-#right-panel { display: flex; flex-direction: column; }
-#hyp-section { flex: 1; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); min-height: 0; }
-#esc-section  { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* ── TAB 2: Feed en Vivo ─────────────────────────────────────────────────── */
+#tab-feed{flex-direction:column;overflow:hidden}
+#feed-filters{
+  display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0
+}
+.fc{
+  padding:3px 10px;border-radius:3px;font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;cursor:pointer;border:1px solid var(--border2);
+  color:var(--dim);background:transparent;transition:all .15s;white-space:nowrap
+}
+.fc.active{border-color:var(--accent);color:var(--accent);background:var(--accent-g)}
+.fc:hover{border-color:var(--border2);color:var(--text)}
+#feed-count{margin-left:auto;font-size:10px;color:var(--dim)}
+#feed-full-wrap{flex:1;overflow:auto}
+#feed-full-wrap::-webkit-scrollbar{width:3px;height:3px}
+#feed-full-wrap::-webkit-scrollbar-thumb{background:var(--border2)}
+.ftbl{width:100%;border-collapse:collapse}
+.ftbl thead th{
+  padding:5px 12px;text-align:left;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dim);background:var(--bg);
+  border-bottom:1px solid var(--border);position:sticky;top:0;white-space:nowrap
+}
+.ftbl tbody tr{border-bottom:1px solid rgba(26,34,53,.7)}
+.ftbl tbody tr:hover{background:var(--surface)}
+.ftbl tbody td{padding:4px 12px;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
 
-.hyp-item {
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 4px;
+/* ── TAB 3: Hipótesis ────────────────────────────────────────────────────── */
+#tab-hyp{flex-direction:column}
+#hyp-toolbar{
+  display:flex;align-items:center;gap:10px;padding:8px 14px;
+  background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0
 }
-.hyp-item:hover { background: var(--surface2); }
-.hyp-meta { display: flex; align-items: center; gap: 8px; }
-.hyp-rank { font-size: 9px; color: var(--dim); }
-.hyp-score { font-size: 11px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
-.hyp-text { font-size: 12px; color: var(--text); line-height: 1.4; }
-.hyp-ip { font-size: 10px; color: var(--dim); }
+#hyp-list{flex:1;overflow-y:auto}
+#hyp-list::-webkit-scrollbar{width:3px}
+#hyp-list::-webkit-scrollbar-thumb{background:var(--border2)}
+.hyp-card{
+  border-bottom:1px solid var(--border);transition:background .12s;
+  cursor:pointer
+}
+.hyp-card:hover{background:var(--surface2)}
+.hyp-card-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px}
+.hyp-num{font-size:11px;color:var(--dim);width:28px}
+.hyp-score-bar-wrap{width:80px;height:6px;background:var(--border);border-radius:3px;position:relative}
+.hyp-score-bar{height:100%;border-radius:3px;background:var(--accent);transition:width .4s}
+.hyp-score-txt{font-size:12px;font-weight:700;color:var(--accent);width:48px;text-align:right;font-variant-numeric:tabular-nums}
+.hyp-ip-tag{font-size:10px;color:var(--dim);margin-left:4px}
+.hyp-text-sm{font-size:12px;color:var(--text);flex:1;padding-right:8px;line-height:1.35}
+.hyp-expand{font-size:12px;color:var(--dim);flex-shrink:0}
+.hyp-drawer{
+  display:none;border-top:1px solid var(--border2);padding:12px 14px 14px;
+  background:var(--bg);flex-direction:column;gap:10px
+}
+.hyp-drawer.open{display:flex}
+.hyp-act-row{display:flex;gap:6px;flex-wrap:wrap}
+.hbtn{
+  padding:5px 12px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid var(--border2);background:transparent;color:var(--dim);transition:all .15s
+}
+.hbtn:hover{border-color:var(--accent);color:var(--accent)}
+.hbtn.h-ok:hover{border-color:var(--ok);color:var(--ok)}
+.hbtn.h-esc:hover{border-color:var(--warn);color:var(--warn)}
+.hbtn.h-fp:hover{border-color:var(--crit);color:var(--crit)}
+.hbtn.h-pur:hover{border-color:var(--purple);color:var(--purple)}
+.hbtn.active{border-color:var(--ok);color:var(--ok);background:rgba(34,197,94,.1)}
+.hyp-ioc-row{font-size:11px;color:var(--dim)}
+.hyp-ioc-row span{color:var(--text)}
+.hyp-note-lbl{font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.hyp-note-txt{
+  width:100%;background:var(--surface);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--mono);font-size:11px;padding:7px 10px;
+  resize:vertical;min-height:60px;outline:none
+}
+.hyp-note-txt:focus{border-color:var(--accent)}
+.hyp-note-save{
+  align-self:flex-start;padding:4px 12px;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;border:1px solid var(--accent-d);background:var(--accent-g);
+  color:var(--accent)
+}
+.hyp-note-save:hover{background:rgba(0,212,255,.2)}
+.hyp-ttps{font-size:10px;color:var(--dim);margin-top:2px}
+.hyp-ttps span{color:var(--purple);margin-right:6px}
 
-.esc-item {
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 3px;
+/* ── TAB 4: Purple Bridge ────────────────────────────────────────────────── */
+#tab-pb{flex-direction:column;overflow-y:auto;padding:20px}
+#tab-pb::-webkit-scrollbar{width:3px}
+#tab-pb::-webkit-scrollbar-thumb{background:var(--border2)}
+.pb-section{
+  background:var(--surface);border:1px solid var(--border2);
+  padding:18px 20px;margin-bottom:16px
 }
-.esc-item:hover { background: var(--surface2); }
-.esc-header { display: flex; align-items: center; gap: 8px; }
-.esc-severity { font-size: 10px; font-weight: 700; text-transform: uppercase; }
-.sev-critical { color: var(--crit); }
-.sev-high     { color: var(--warn); }
-.sev-medium   { color: #60a5fa; }
-.esc-ip { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
-.esc-ttps { font-size: 10px; color: var(--dim); }
-.esc-narrative { font-size: 11px; color: var(--dim); line-height: 1.4; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.pb-sec-title{
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:14px;display:flex;align-items:center;gap:8px
+}
+.pb-status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.pb-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pb-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;width:110px;flex-shrink:0}
+.pb-field{
+  flex:1;background:var(--bg);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 10px;outline:none
+}
+.pb-field:focus{border-color:var(--accent)}
+.pb-field.masked{letter-spacing:.2em;color:var(--dim)}
+.pbtn{
+  padding:5px 12px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid var(--border2);background:transparent;color:var(--dim);
+  white-space:nowrap;transition:all .15s;flex-shrink:0
+}
+.pbtn:hover,.pbtn.primary{border-color:var(--accent);color:var(--accent);background:var(--accent-g)}
+.pbtn.green-btn{border-color:var(--ok);color:var(--ok);background:rgba(34,197,94,.1)}
+.pb-hint{font-size:10px;color:var(--dim);margin-top:6px;line-height:1.6}
+.pb-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px}
+.pb-stat{background:var(--bg);padding:10px 14px;border:1px solid var(--border)}
+.pb-stat-v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent)}
+.pb-stat-l{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin-top:2px}
+.pb-test-result{
+  margin-top:10px;padding:8px 12px;font-size:11px;
+  border:1px solid var(--border);background:var(--bg);color:var(--dim);min-height:36px
+}
+#jwt-expiry{font-size:10px;margin-top:4px}
+#jwt-expiry.ok{color:var(--ok)} #jwt-expiry.warn{color:var(--warn)} #jwt-expiry.crit{color:var(--crit)}
 
-/* Empty states */
-.empty-state {
-  padding: 32px 16px; text-align: center; color: var(--dim);
-  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+/* ── TAB 5: Línea Base ───────────────────────────────────────────────────── */
+#tab-lb{flex-direction:column;overflow-y:auto;padding:20px}
+#tab-lb::-webkit-scrollbar{width:3px}
+#tab-lb::-webkit-scrollbar-thumb{background:var(--border2)}
+.lb-card{background:var(--surface);border:1px solid var(--border2);padding:16px 18px;margin-bottom:16px}
+.lb-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+#spark-canvas{display:block;width:100%;height:110px}
+.lb-legend{display:flex;gap:20px;margin-top:8px;font-size:10px;color:var(--dim)}
+.lb-legend span{display:flex;align-items:center;gap:5px}
+.ll-dot{width:10px;height:3px;border-radius:2px;display:inline-block}
+.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.exp-btn{
+  padding:10px 14px;border:1px solid var(--border2);background:var(--bg);
+  color:var(--dim);text-align:left;font-size:11px;transition:all .15s
 }
+.exp-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-g)}
+.exp-btn strong{display:block;font-size:13px;margin-bottom:2px;color:var(--text)}
+.exp-btn:hover strong{color:var(--accent)}
 
-/* ── Bottom — Attack History ──────────────────────────────────────────────── */
-#bottom {
-  flex-shrink: 0; height: 200px; display: flex; flex-direction: column;
-  border-top: 1px solid var(--border);
+/* ── TAB 6: Configuración ────────────────────────────────────────────────── */
+#tab-cfg{flex-direction:column;overflow-y:auto;padding:20px}
+#tab-cfg::-webkit-scrollbar{width:3px}
+#tab-cfg::-webkit-scrollbar-thumb{background:var(--border2)}
+.cfg-card{background:var(--surface);border:1px solid var(--border2);padding:16px 18px;margin-bottom:16px}
+.cfg-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+.cfg-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.cfg-lbl{font-size:11px;color:var(--text);width:180px;flex-shrink:0}
+.cfg-sub{font-size:10px;color:var(--dim);width:180px;flex-shrink:0;margin-top:-8px;margin-bottom:4px}
+input[type=range]{flex:1;accent-color:var(--accent)}
+.cfg-val{font-size:12px;font-weight:700;color:var(--accent);width:50px;text-align:right;font-variant-numeric:tabular-nums}
+.radio-group{display:flex;gap:8px;flex-wrap:wrap}
+.radio-opt{
+  padding:4px 12px;border:1px solid var(--border2);font-size:10px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--dim);
+  cursor:pointer;transition:all .15s;background:transparent
 }
-#bottom-header {
-  display: flex; align-items: center; gap: 12px; padding: 8px 16px;
-  background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
-}
-#bottom-title { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
-#filter-chips { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
-#filter-chips::-webkit-scrollbar { display: none; }
-.filter-chip {
-  padding: 3px 10px; border-radius: 3px; font-size: 10px; letter-spacing: .06em;
-  text-transform: uppercase; cursor: pointer; border: 1px solid var(--border2);
-  color: var(--dim); background: transparent; font-family: var(--mono);
-  transition: all .15s; white-space: nowrap; flex-shrink: 0;
-}
-.filter-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,.08); }
-.filter-chip:hover { border-color: var(--border2); color: var(--text); }
-#bottom-count { margin-left: auto; font-size: 10px; color: var(--dim); flex-shrink: 0; }
+.radio-opt.sel{border-color:var(--accent);color:var(--accent);background:var(--accent-g)}
+.toggle-wrap{display:flex;align-items:center;gap:10px}
+.toggle{width:36px;height:20px;border:1px solid var(--border2);background:var(--bg);position:relative;cursor:pointer;flex-shrink:0;transition:all .2s}
+.toggle.on{background:var(--accent-d);border-color:var(--accent)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:12px;height:12px;background:var(--dim);transition:all .2s}
+.toggle.on::after{left:19px;background:var(--accent)}
+.toggle-lbl{font-size:11px;color:var(--text)}
 
-#history-table-wrap { flex: 1; overflow-y: auto; overflow-x: auto; }
-#history-table-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
-#history-table-wrap::-webkit-scrollbar-thumb { background: var(--border2); }
-#history-table { width: 100%; border-collapse: collapse; }
-#history-table thead th {
-  padding: 5px 12px; text-align: left; font-size: 9px;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
-  background: var(--bg); position: sticky; top: 0; white-space: nowrap;
+/* ── Token overlay ───────────────────────────────────────────────────────── */
+#tok-overlay{
+  position:fixed;inset:0;background:rgba(6,8,13,.97);
+  display:flex;align-items:center;justify-content:center;z-index:100
 }
-#history-table tbody tr { border-bottom: 1px solid rgba(29,37,53,.7); }
-#history-table tbody tr:hover { background: var(--surface); }
-#history-table tbody td { padding: 4px 12px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#tok-box{
+  background:var(--surface);border:1px solid var(--border2);
+  border-top:2px solid var(--accent);padding:32px 36px;width:520px;max-width:90vw
+}
+#tok-box h2{font-size:16px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:10px}
+#tok-box p{color:var(--dim);font-size:11px;margin-bottom:18px;line-height:1.6}
+#tok-input{
+  width:100%;background:var(--bg);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--mono);font-size:11px;padding:9px 12px;outline:none
+}
+#tok-input:focus{border-color:var(--accent)}
+#tok-btn{
+  margin-top:10px;padding:9px 22px;background:var(--accent);
+  color:#000;font-family:var(--mono);font-size:12px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;border:none
+}
+#tok-btn:hover{background:#33e8ff}
+#tok-err{margin-top:8px;color:var(--crit);font-size:11px;min-height:16px}
 
-/* ── Scanline overlay (subtle ops center feel) ────────────────────────────── */
-body::after {
-  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 999;
-  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.04) 2px, rgba(0,0,0,.04) 4px);
+/* ── Kill-switch confirm ─────────────────────────────────────────────────── */
+#ks-overlay{
+  position:fixed;inset:0;background:rgba(6,8,13,.97);
+  display:none;align-items:center;justify-content:center;z-index:200
 }
+#ks-box{
+  background:var(--surface);border:2px solid var(--crit);padding:28px 32px;
+  width:420px;max-width:90vw;text-align:center
+}
+#ks-box h2{font-size:16px;letter-spacing:.12em;text-transform:uppercase;color:var(--crit);margin-bottom:10px}
+#ks-box p{font-size:12px;color:var(--dim);margin-bottom:20px;line-height:1.6}
+#ks-confirm{padding:9px 24px;background:var(--crit);color:#fff;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:none;margin-right:10px}
+#ks-cancel{padding:9px 18px;border:1px solid var(--border2);background:transparent;color:var(--dim);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+#ks-cancel:hover{border-color:var(--text);color:var(--text)}
+
+/* ── Scanline ────────────────────────────────────────────────────────────── */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px)}
 </style>
 
 <div id="app">
 
-  <!-- Token Overlay -->
-  <div id="token-overlay">
-    <div id="token-box">
-      <h2>Pantheon War Room</h2>
-      <p>Ingresa el Bearer JWT del operador para conectar al sistema de monitoreo en tiempo real.</p>
-      <input id="token-input" type="text" placeholder="eyJhbGci..." value="__PREFILL_TOKEN__" autocomplete="off" spellcheck="false">
-      <br>
-      <button id="token-btn" onclick="initWithToken()">Conectar</button>
-      <div id="token-error"></div>
-    </div>
+<!-- ── Kill Switch Confirm ──────────────────────────────────────────────── -->
+<div id="ks-overlay">
+  <div id="ks-box">
+    <h2 id="ks-title">⚠ KILL SWITCH</h2>
+    <p id="ks-body">Esta acción detiene inmediatamente el pipeline de Pantheon. Requiere reinicio manual. ¿Confirmar?</p>
+    <button id="ks-confirm" onclick="doKillSwitch()">CONFIRMAR</button>
+    <button id="ks-cancel" onclick="closeKS()">CANCELAR</button>
   </div>
+</div>
 
-  <!-- Top Bar -->
-  <div id="topbar">
-    <span id="system-name">⬡ Pantheon v2.1</span>
-    <div class="topbar-sep"></div>
-    <div id="status-pill">
-      <div class="status-dot" id="status-dot"></div>
-      <span id="status-text">En línea</span>
-    </div>
-    <div class="topbar-sep"></div>
-    <div id="counters">
-      <div class="counter"><span class="counter-val red" id="cnt-blocked">—</span><span class="counter-label">Bloqueados</span></div>
-      <div class="counter"><span class="counter-val" id="cnt-passed">—</span><span class="counter-label">Pasaron</span></div>
-      <div class="counter"><span class="counter-val cyan" id="cnt-escalated">—</span><span class="counter-label">Escalados</span></div>
-      <div class="counter"><span class="counter-val yellow" id="cnt-hypotheses">—</span><span class="counter-label">Hipótesis</span></div>
-      <div class="counter"><span class="counter-val" id="cnt-cci-avg">—</span><span class="counter-label">CCI Prom</span></div>
-    </div>
-    <div id="topbar-right">
-      <span id="last-update">—</span>
-    </div>
+<!-- ── Token Overlay ────────────────────────────────────────────────────── -->
+<div id="tok-overlay">
+  <div id="tok-box">
+    <h2>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+        <path d="M12 2L4 6V12C4 16.97 7.37 21.37 12 22C16.63 21.37 20 16.97 20 12V6L12 2Z" fill="var(--accent)" opacity=".85"/>
+        <path d="M10 14.5L7.5 12L8.91 10.58L10 11.67L14.09 7.58L15.5 9L10 14.5Z" fill="var(--bg)"/>
+      </svg>
+      <span id="t-login-title">PANTHEON WAR ROOM</span>
+    </h2>
+    <p id="t-login-desc">Ingresa el Bearer JWT del operador para conectar al sistema de monitoreo.</p>
+    <input id="tok-input" type="text" placeholder="eyJhbGci..." value="__PREFILL_TOKEN__" autocomplete="off" spellcheck="false">
+    <br>
+    <button id="tok-btn" onclick="initWithToken()" id="t-login-btn">CONECTAR</button>
+    <div id="tok-err"></div>
   </div>
+</div>
 
-  <!-- Main -->
-  <div id="main">
+<!-- ── Top Bar ──────────────────────────────────────────────────────────── -->
+<div id="topbar">
+  <div id="logo">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+      <path d="M12 2L4 6V12C4 16.97 7.37 21.37 12 22C16.63 21.37 20 16.97 20 12V6L12 2Z" fill="var(--accent)" opacity=".9"/>
+      <path d="M10 14.5L7.5 12L8.91 10.58L10 11.67L14.09 7.58L15.5 9L10 14.5Z" fill="var(--bg)"/>
+    </svg>
+    <span id="system-name">PANTHEON V2.1</span>
+  </div>
+  <div class="tsep"></div>
+  <div id="status-pill">
+    <div class="sdot" id="sdot"></div>
+    <span id="status-text">—</span>
+  </div>
+  <div class="tsep"></div>
+  <div id="counters">
+    <div class="ctr"><span class="cv red" id="cnt-bl">—</span><span class="cl" id="t-bl">BLOQUEADOS</span></div>
+    <div class="ctr"><span class="cv" id="cnt-ps">—</span><span class="cl" id="t-ps">PASARON</span></div>
+    <div class="ctr"><span class="cv cyan" id="cnt-es">—</span><span class="cl" id="t-es">ESCALADOS</span></div>
+    <div class="ctr"><span class="cv yel" id="cnt-hy">—</span><span class="cl" id="t-hy">HIPÓTESIS</span></div>
+    <div class="ctr"><span class="cv" id="cnt-ca">—</span><span class="cl" id="t-ca">CCI PROM</span></div>
+  </div>
+  <div id="topbar-right">
+    <span id="last-upd">—</span>
+    <button id="lang-btn" onclick="toggleLang()">EN</button>
+    <button id="ks-btn" onclick="openKS()">⏹ KILL SWITCH</button>
+  </div>
+</div>
 
-    <!-- LEFT — Event Feed -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Feed de eventos</span>
-        <span class="panel-badge" id="feed-badge">0</span>
-      </div>
-      <div class="panel-body">
-        <table id="feed-table">
-          <thead><tr>
-            <th>Tiempo</th><th>IP Origen</th><th>CCI</th><th>Guard</th><th>Tipo</th><th>Hyp</th>
-          </tr></thead>
-          <tbody id="feed-body">
-            <tr><td colspan="6" class="empty-state">Sin eventos — conecta para monitorear</td></tr>
-          </tbody>
-        </table>
-      </div>
+<!-- ── Tab Bar ──────────────────────────────────────────────────────────── -->
+<div id="tabbar">
+  <button class="tab active" data-tab="mc"   onclick="switchTab('mc')">
+    ⊕ <span id="tt-mc">MISIÓN CONTROL</span>
+  </button>
+  <button class="tab" data-tab="feed" onclick="switchTab('feed')">
+    ◈ <span id="tt-feed">FEED EN VIVO</span>
+    <span class="tab-badge" id="tb-feed">0</span>
+  </button>
+  <button class="tab" data-tab="hyp"  onclick="switchTab('hyp')">
+    ◇ <span id="tt-hyp">HIPÓTESIS</span>
+    <span class="tab-badge" id="tb-hyp">0</span>
+  </button>
+  <button class="tab" data-tab="pb"   onclick="switchTab('pb')">
+    ⟡ <span id="tt-pb">PURPLE BRIDGE</span>
+    <span class="tab-badge" id="tb-pb-status">—</span>
+  </button>
+  <button class="tab" data-tab="lb"   onclick="switchTab('lb')">
+    ≋ <span id="tt-lb">LÍNEA BASE</span>
+  </button>
+  <button class="tab" data-tab="cfg"  onclick="switchTab('cfg')">
+    ⚙ <span id="tt-cfg">CONFIG</span>
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 1: MISIÓN CONTROL                                                 -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tabpanel active" id="tab-mc">
+  <!-- Feed rápido -->
+  <div class="pane" style="flex:1">
+    <div class="ph">
+      <span class="pt" id="t-feed-panel">FEED DE EVENTOS</span>
+      <span class="pb-badge" id="feed-badge">0</span>
     </div>
-
-    <!-- CENTER — CCI Radar -->
-    <div class="panel" id="center-panel">
-      <div class="panel-header">
-        <span class="panel-title">Nivel de amenaza</span>
-      </div>
-      <div id="radar-wrap" class="panel-body">
-        <canvas id="cci-canvas" width="200" height="200"></canvas>
-        <div>
-          <div id="threat-level">Índice CCI</div>
-          <div id="cci-value" style="text-align:center">—</div>
-          <div id="cci-unit" style="text-align:center">CENTINELA</div>
-        </div>
-        <div id="threat-label">INICIALIZANDO</div>
-      </div>
-      <div id="sparkline-row">
-        <div class="spark-cell">
-          <div class="spark-label">Bloq/min</div>
-          <div class="spark-val" id="spark-rate" style="color:var(--crit)">—</div>
-        </div>
-        <div class="spark-cell">
-          <div class="spark-label">Rate limit</div>
-          <div class="spark-val" id="spark-rl" style="color:var(--warn)">—</div>
-        </div>
-        <div class="spark-cell">
-          <div class="spark-label">Iter Hermes</div>
-          <div class="spark-val" id="spark-hermes" style="color:var(--accent)">—</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT — Hypotheses + Escalations -->
-    <div class="panel" id="right-panel">
-      <div id="hyp-section">
-        <div class="panel-header">
-          <span class="panel-title">Hipótesis Hermes</span>
-          <span class="panel-badge" id="hyp-badge">0</span>
-        </div>
-        <div class="panel-body" id="hyp-body">
-          <div class="empty-state">Sin hipótesis</div>
-        </div>
-      </div>
-      <div id="esc-section">
-        <div class="panel-header">
-          <span class="panel-title">Escalados Ares ↑</span>
-          <span class="panel-badge" id="esc-badge">0</span>
-        </div>
-        <div class="panel-body" id="esc-body">
-          <div class="empty-state">Sin escalados</div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /main -->
-
-  <!-- Bottom — Attack History -->
-  <div id="bottom">
-    <div id="bottom-header">
-      <span id="bottom-title">Historial de ataques</span>
-      <div id="filter-chips">
-        <button class="filter-chip active" data-filter="all">Todos</button>
-        <button class="filter-chip" data-filter="injection">Inyección</button>
-        <button class="filter-chip" data-filter="critical_anomaly">Crítico</button>
-        <button class="filter-chip" data-filter="moderate_anomaly">Moderado</button>
-        <button class="filter-chip" data-filter="quarantine">Cuarentena</button>
-        <button class="filter-chip" data-filter="ares_escalation">Ares</button>
-        <button class="filter-chip" data-filter="normal">Normal</button>
-      </div>
-      <span id="bottom-count">0 eventos</span>
-    </div>
-    <div id="history-table-wrap">
-      <table id="history-table">
+    <div class="pb">
+      <table class="feed-tbl">
         <thead><tr>
-          <th>#</th><th>Timestamp</th><th>IP Origen</th><th>CCI</th>
-          <th>Guard</th><th>Tipo de ataque</th><th>Crítico</th><th>Hipótesis</th><th>Operador</th>
+          <th id="th-time">TIEMPO</th><th>IP</th><th>CCI</th>
+          <th id="th-guard">GUARD</th><th id="th-tipo">TIPO</th><th>HYP</th>
         </tr></thead>
-        <tbody id="history-body">
-          <tr><td colspan="9" class="empty-state">Sin historial</td></tr>
+        <tbody id="feed-body">
+          <tr><td colspan="6" class="empty" id="t-feed-empty">SIN EVENTOS — CONECTANDO…</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
+  <!-- CCI Radar -->
+  <div class="pane" id="center-mc">
+    <div class="ph"><span class="pt" id="t-threat-panel">NIVEL DE AMENAZA</span></div>
+    <div id="radar-wrap">
+      <canvas id="cci-canvas" width="190" height="190"></canvas>
+      <div>
+        <div id="threat-lv" style="text-align:center;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim)">ÍNDICE CCI</div>
+        <div id="threat-lb" style="color:var(--ok)">—</div>
+      </div>
+      <button id="dash-btn" onclick="openDashboard()">📊 <span id="t-dash-btn">ABRIR DASHBOARD</span></button>
+    </div>
+    <div id="spark-row">
+      <div class="sc"><div class="sl" id="t-bloqmin">BLOQ/MIN</div><div class="sv" id="sp-rate" style="color:var(--crit)">—</div></div>
+      <div class="sc"><div class="sl" id="t-rateliml">RATE LIMIT</div><div class="sv" id="sp-rl" style="color:var(--warn)">—</div></div>
+      <div class="sc"><div class="sl" id="t-iterh">ITER HERMES</div><div class="sv" id="sp-hermes" style="color:var(--accent)">—</div></div>
+    </div>
+  </div>
+
+  <!-- Hipótesis + Escalados -->
+  <div class="pane" id="right-mc" style="flex:1">
+    <div id="hyp-sec">
+      <div class="ph">
+        <span class="pt" id="t-hyp-panel">HIPÓTESIS HERMES</span>
+        <span class="pb-badge" id="hyp-badge">0</span>
+      </div>
+      <div class="pb" id="hyp-body-mc"><div class="empty" id="t-hyp-empty">SIN HIPÓTESIS</div></div>
+    </div>
+    <div id="esc-sec">
+      <div class="ph">
+        <span class="pt" id="t-esc-panel">ESCALADOS ARES ↑</span>
+        <span class="pb-badge" id="esc-badge">0</span>
+      </div>
+      <div class="pb" id="esc-body"><div class="empty" id="t-esc-empty">SIN ESCALADOS</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 2: FEED EN VIVO                                                    -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tabpanel" id="tab-feed">
+  <div id="feed-filters">
+    <button class="fc active" data-filter="all"              id="fc-all">TODOS</button>
+    <button class="fc"        data-filter="injection"        id="fc-inj">INYECCIÓN</button>
+    <button class="fc"        data-filter="critical_anomaly" id="fc-cri">CRÍTICO</button>
+    <button class="fc"        data-filter="moderate_anomaly" id="fc-mod">MODERADO</button>
+    <button class="fc"        data-filter="quarantine"       id="fc-qua">CUARENTENA</button>
+    <button class="fc"        data-filter="ares_escalation"  id="fc-are">ARES</button>
+    <button class="fc"        data-filter="normal"           id="fc-nor">NORMAL</button>
+    <span id="feed-count" style="margin-left:auto;font-size:10px;color:var(--dim)">0 eventos</span>
+  </div>
+  <div id="feed-full-wrap">
+    <table class="ftbl">
+      <thead><tr>
+        <th>#</th><th id="fth-ts">TIMESTAMP</th><th>IP</th>
+        <th>CCI</th><th>GUARD</th><th id="fth-tipo">TIPO</th>
+        <th id="fth-crit">CRÍTICO</th><th>HYP</th><th id="fth-op">OPERADOR</th>
+      </tr></thead>
+      <tbody id="feed-full-body">
+        <tr><td colspan="9" class="empty" id="t-feed-full-empty">SIN HISTORIAL</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 3: HIPÓTESIS                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tabpanel" id="tab-hyp">
+  <div id="hyp-toolbar">
+    <span class="pt" id="t-hyp-toolbar">HIPÓTESIS ACTIVAS — CLICK PARA EXPANDIR</span>
+    <span id="tb-hyp-count" style="margin-left:auto;font-size:10px;color:var(--dim)"></span>
+  </div>
+  <div id="hyp-list">
+    <div class="empty" id="t-hyp-list-empty">SIN HIPÓTESIS AÚN</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 4: PURPLE BRIDGE                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tabpanel" id="tab-pb">
+
+  <!-- Estado de conexión -->
+  <div class="pb-section">
+    <div class="pb-sec-title">
+      <div class="pb-status-dot" id="pb-sdot" style="background:var(--dim);box-shadow:none"></div>
+      <span id="t-pb-status">ESTADO DEL BRIDGE</span>
+    </div>
+    <div class="pb-stats">
+      <div class="pb-stat"><div class="pb-stat-v" id="pb-events-rx">0</div><div class="pb-stat-l" id="t-pb-rx">RECIBIDOS DE ARES</div></div>
+      <div class="pb-stat"><div class="pb-stat-v" id="pb-last-ping">—</div><div class="pb-stat-l" id="t-pb-ping">ÚLTIMO PING</div></div>
+      <div class="pb-stat"><div class="pb-stat-v" id="pb-uptime">—</div><div class="pb-stat-l" id="t-pb-uptime">UPTIME BRIDGE</div></div>
+    </div>
+  </div>
+
+  <!-- Conexión para Ares -->
+  <div class="pb-section">
+    <div class="pb-sec-title" id="t-pb-conn">DATOS DE CONEXIÓN PARA ARES</div>
+    <div class="pb-row">
+      <span class="pb-lbl" id="t-pb-url-lbl">PANTHEON URL</span>
+      <input class="pb-field" id="pb-url" value="" readonly>
+      <button class="pbtn" onclick="testPBConn()" id="t-pb-test">PROBAR</button>
+    </div>
+    <div id="pb-test-result" class="pb-test-result" style="display:none"></div>
+
+    <div class="pb-row" style="margin-top:10px">
+      <span class="pb-lbl">JWT TOKEN</span>
+      <input class="pb-field masked" id="pb-jwt" value="" readonly>
+      <button class="pbtn" onclick="copyJWT()" id="t-pb-copy">📋 COPIAR</button>
+    </div>
+    <div id="jwt-expiry"></div>
+    <div class="pb-hint" id="t-pb-hint">
+      Copia la URL y el JWT en la pestaña Purple Bridge de Ares.<br>
+      Source IP: la IP desde donde Ares enviará requests (ej. 127.0.0.1 si es local).
+    </div>
+  </div>
+
+  <!-- Ping de prueba -->
+  <div class="pb-section">
+    <div class="pb-sec-title" id="t-pb-ping-title">ENVIAR PING DE PRUEBA A PANTHEON</div>
+    <button class="pbtn primary" onclick="sendTestPing()" id="t-pb-send-ping">⚡ ENVIAR PING SINTÉTICO</button>
+    <div id="pb-ping-result" class="pb-test-result" style="display:none;margin-top:10px"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 5: LÍNEA BASE                                                      -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tabpanel" id="tab-lb">
+
+  <div class="lb-card">
+    <div class="lb-title" id="t-lb-title">CCI — ÚLTIMOS 60 VALORES</div>
+    <canvas id="spark-canvas"></canvas>
+    <div class="lb-legend">
+      <span><span class="ll-dot" style="background:var(--accent)"></span> <span id="t-lb-cci">CCI actual</span></span>
+      <span><span class="ll-dot" style="background:rgba(0,212,255,.25)"></span> <span id="t-lb-band">Banda normal</span></span>
+      <span><span class="ll-dot" style="background:var(--crit)"></span> <span id="t-lb-crit">Umbral crítico</span></span>
+    </div>
+  </div>
+
+  <div class="lb-card">
+    <div class="lb-title" id="t-lb-export">EXPORTAR</div>
+    <div class="export-grid">
+      <button class="exp-btn" onclick="exportData('json')">
+        <strong>JSON</strong>
+        <span id="t-exp-json">Eventos + hipótesis + métricas de la sesión</span>
+      </button>
+      <button class="exp-btn" onclick="exportData('csv')">
+        <strong>CSV</strong>
+        <span id="t-exp-csv">Feed de eventos en formato tabla</span>
+      </button>
+      <button class="exp-btn" onclick="exportData('ioc')">
+        <strong>IOC LIST</strong>
+        <span id="t-exp-ioc">IPs y TTPs detectados — listo para firewall/SIEM</span>
+      </button>
+      <button class="exp-btn" onclick="exportData('report')">
+        <strong>REPORTE TXT</strong>
+        <span id="t-exp-rep">Hipótesis + timeline para evidencia forense</span>
+      </button>
+      <button class="exp-btn" onclick="exportRemote('stix')">
+        <strong>STIX 2.1</strong>
+        <span id="t-exp-stix">Bundle STIX para MISP / OpenCTI / Sentinel</span>
+      </button>
+      <button class="exp-btn" onclick="exportRemote('sigma')">
+        <strong>SIGMA RULES</strong>
+        <span id="t-exp-sigma">Reglas para Splunk / Elastic / Sentinel</span>
+      </button>
+      <button class="exp-btn" onclick="exportRemote('graph')">
+        <strong>GRAFO ATT&amp;CK</strong>
+        <span id="t-exp-graph">Pesos de co-ocurrencia aprendidos (transferencia entre equipos)</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="lb-card">
+    <div class="lb-title" id="t-lb-import">IMPORTAR CONOCIMIENTO DE OTRO EQUIPO</div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:12px" id="t-lb-import-desc">
+      Pega o carga el JSON exportado desde otra instancia de Pantheon (GET /export/graph)
+      para transferir co-ocurrencias aprendidas sin exponer datos operacionales.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+      <input type="file" id="import-file" accept=".json" onchange="loadImportFile()" style="display:none">
+      <button class="pbtn primary" onclick="document.getElementById('import-file').click()" id="t-imp-file">📂 CARGAR JSON</button>
+      <span style="font-size:10px;color:var(--dim)">— o pega abajo —</span>
+    </div>
+    <textarea id="import-textarea" style="width:100%;height:90px;background:var(--bg);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:11px;padding:8px 10px;resize:vertical;outline:none" placeholder='{"version":"1.0","cooccurrence":{"T1190,T1059":5,...},"edges":[...]}'></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--dim);cursor:pointer">
+        <input type="checkbox" id="merge-check" checked style="accent-color:var(--accent)">
+        <span id="t-imp-merge">MERGE (sumar a conocimiento existente)</span>
+      </label>
+      <button class="pbtn primary" onclick="doImport()" style="margin-left:auto" id="t-imp-submit">⬆ IMPORTAR</button>
+    </div>
+    <div id="import-result" style="margin-top:8px;font-size:11px;min-height:20px;color:var(--dim)"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 6: CONFIGURACIÓN                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════════ -->
+<div class="tabpanel" id="tab-cfg">
+
+  <div class="cfg-card">
+    <div class="cfg-title" id="t-cfg-polling">POLLING</div>
+    <div class="cfg-row">
+      <span class="cfg-lbl" id="t-cfg-events-lbl">Intervalo eventos</span>
+      <div class="radio-group" id="rg-events">
+        <button class="radio-opt sel" data-val="2000" onclick="setRadio('rg-events',this,setEventsInterval)">2 s</button>
+        <button class="radio-opt" data-val="5000" onclick="setRadio('rg-events',this,setEventsInterval)">5 s</button>
+        <button class="radio-opt" data-val="10000" onclick="setRadio('rg-events',this,setEventsInterval)">10 s</button>
+      </div>
+    </div>
+    <div class="cfg-row">
+      <span class="cfg-lbl" id="t-cfg-metrics-lbl">Intervalo métricas</span>
+      <div class="radio-group" id="rg-metrics">
+        <button class="radio-opt" data-val="5000" onclick="setRadio('rg-metrics',this,setMetricsInterval)">5 s</button>
+        <button class="radio-opt sel" data-val="10000" onclick="setRadio('rg-metrics',this,setMetricsInterval)">10 s</button>
+        <button class="radio-opt" data-val="30000" onclick="setRadio('rg-metrics',this,setMetricsInterval)">30 s</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cfg-card">
+    <div class="cfg-title" id="t-cfg-thresholds">UMBRALES CCI</div>
+    <div class="cfg-row">
+      <span class="cfg-lbl" id="t-cfg-warn-lbl">Umbral advertencia</span>
+      <input type="range" min="0.1" max="0.9" step="0.05" value="0.45" id="sl-warn" oninput="document.getElementById('sl-warn-v').textContent=this.value">
+      <span class="cfg-val" id="sl-warn-v">0.45</span>
+    </div>
+    <div class="cfg-row">
+      <span class="cfg-lbl" id="t-cfg-crit-lbl">Umbral crítico</span>
+      <input type="range" min="0.1" max="1.0" step="0.05" value="0.75" id="sl-crit" oninput="document.getElementById('sl-crit-v').textContent=this.value;CRIT_THRESHOLD=parseFloat(this.value)">
+      <span class="cfg-val" id="sl-crit-v">0.75</span>
+    </div>
+  </div>
+
+  <div class="cfg-card">
+    <div class="cfg-title" id="t-cfg-ui">INTERFAZ</div>
+    <div class="cfg-row">
+      <span class="cfg-lbl" id="t-cfg-lang-lbl">Idioma / Language</span>
+      <div class="radio-group" id="rg-lang">
+        <button class="radio-opt sel" data-val="es" onclick="setRadio('rg-lang',this,()=>setLang('es'))">Español</button>
+        <button class="radio-opt" data-val="en" onclick="setRadio('rg-lang',this,()=>setLang('en'))">English</button>
+      </div>
+    </div>
+    <div class="cfg-row">
+      <span class="cfg-lbl" id="t-cfg-sound-lbl">Alerta sonora</span>
+      <div class="toggle-wrap">
+        <div class="toggle" id="tgl-sound" onclick="toggleSound()"></div>
+        <span class="toggle-lbl" id="t-cfg-sound-val">OFF</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 </div><!-- /app -->
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════════════════
 let TOKEN = '';
-let POLL_EVENTS_ID = null, POLL_METRICS_ID = null, POLL_HEALTH_ID = null;
-let POLL_HYPS_ID = null, POLL_ESC_ID = null;
+let lang = 'es';
+let CRIT_THRESHOLD = 0.75;
+let WARN_THRESHOLD = 0.45;
+let soundOn = false;
 let allEvents = [];
+let allHyps   = [];
 let currentFilter = 'all';
-let cciHistory = [];       // last 30 CCI values for sparkline
+let cciHistory = [];
 let lastEventTs = 0;
-let pendingPulse = false;  // trigger radar ring pulse
+let pendingPulse = false;
+let displayCci = 0, targetCci = 0, pulseAlpha = 0;
+let pbEventsRx = 0, pbBridgeStart = null, pbLastPing = null;
 
-// CCI ring animation state
-let displayCci = 0;
-let targetCci  = 0;
-let animRafId  = null;
-let pulseAlpha = 0;
+let IDs = { ev: null, mt: null, hl: null, hy: null, es: null };
+let evInterval = 2000, mtInterval = 10000;
 
-const ATTACK_LABELS = {
-  injection:        'Inyección',
-  quarantine:       'Cuarentena',
-  critical_anomaly: 'Anomalía Crítica',
-  moderate_anomaly: 'Anomalía Moderada',
-  normal:           'Normal',
-  ares_escalation:  'Ares ↑',
-};
-
-const CHIP_CLASS = {
-  injection:        'chip chip-injection',
-  quarantine:       'chip chip-quarantine',
-  critical_anomaly: 'chip chip-critical',
-  moderate_anomaly: 'chip chip-moderate',
-  normal:           'chip chip-normal',
-  ares_escalation:  'chip chip-ares',
-};
-
-// ── Token flow ─────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  const pre = document.getElementById('token-input').value.trim();
-  document.getElementById('token-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') initWithToken();
-  });
-  if (pre && pre.length > 20) {
-    TOKEN = pre;
-    startPolling();
+// ════════════════════════════════════════════════════════════════════════════
+// I18N
+// ════════════════════════════════════════════════════════════════════════════
+const STRINGS = {
+  es: {
+    'status-online':'EN LÍNEA','status-issues':'PROBLEMAS','status-flaky':'INTERMITENTE',
+    't-bl':'BLOQUEADOS','t-ps':'PASARON','t-es':'ESCALADOS','t-hy':'HIPÓTESIS','t-ca':'CCI PROM',
+    'tt-mc':'MISIÓN CONTROL','tt-feed':'FEED EN VIVO','tt-hyp':'HIPÓTESIS',
+    'tt-pb':'PURPLE BRIDGE','tt-lb':'LÍNEA BASE','tt-cfg':'CONFIG',
+    't-feed-panel':'FEED DE EVENTOS','t-threat-panel':'NIVEL DE AMENAZA',
+    't-hyp-panel':'HIPÓTESIS HERMES','t-esc-panel':'ESCALADOS ARES ↑',
+    't-feed-empty':'SIN EVENTOS — CONECTANDO…',
+    't-hyp-empty':'SIN HIPÓTESIS','t-esc-empty':'SIN ESCALADOS',
+    'th-time':'TIEMPO','th-guard':'GUARD','th-tipo':'TIPO',
+    'fth-ts':'TIMESTAMP','fth-tipo':'TIPO','fth-crit':'CRÍTICO','fth-op':'OPERADOR',
+    'fc-all':'TODOS','fc-inj':'INYECCIÓN','fc-cri':'CRÍTICO','fc-mod':'MODERADO',
+    'fc-qua':'CUARENTENA','fc-are':'ARES','fc-nor':'NORMAL',
+    't-feed-full-empty':'SIN HISTORIAL',
+    't-hyp-toolbar':'HIPÓTESIS ACTIVAS — CLICK PARA EXPANDIR',
+    't-hyp-list-empty':'SIN HIPÓTESIS AÚN',
+    't-pb-status':'ESTADO DEL BRIDGE','t-pb-rx':'RECIBIDOS DE ARES',
+    't-pb-ping':'ÚLTIMO PING','t-pb-uptime':'UPTIME BRIDGE',
+    't-pb-conn':'DATOS DE CONEXIÓN PARA ARES','t-pb-url-lbl':'PANTHEON URL',
+    't-pb-test':'PROBAR','t-pb-copy':'📋 COPIAR',
+    't-pb-hint':'Copia la URL y el JWT en la pestaña Purple Bridge de Ares.<br>Source IP: la IP desde donde Ares enviará requests (ej. 127.0.0.1 si es local).',
+    't-pb-ping-title':'ENVIAR PING DE PRUEBA A PANTHEON',
+    't-pb-send-ping':'⚡ ENVIAR PING SINTÉTICO',
+    't-lb-title':'CCI — ÚLTIMOS 60 VALORES','t-lb-cci':'CCI actual',
+    't-lb-band':'Banda normal','t-lb-crit':'Umbral crítico',
+    't-lb-export':'EXPORTAR SESIÓN',
+    't-exp-json':'Eventos + hipótesis + métricas de la sesión',
+    't-exp-csv':'Feed de eventos en formato tabla',
+    't-exp-ioc':'IPs y TTPs detectados — listo para firewall/SIEM',
+    't-exp-rep':'Hipótesis confirmadas + timeline para evidencia forense',
+    't-cfg-polling':'POLLING','t-cfg-events-lbl':'Intervalo eventos',
+    't-cfg-metrics-lbl':'Intervalo métricas','t-cfg-thresholds':'UMBRALES CCI',
+    't-cfg-warn-lbl':'Umbral advertencia','t-cfg-crit-lbl':'Umbral crítico',
+    't-cfg-ui':'INTERFAZ','t-cfg-lang-lbl':'Idioma / Language',
+    't-cfg-sound-lbl':'Alerta sonora','t-cfg-sound-val-on':'ON','t-cfg-sound-val-off':'OFF',
+    't-login-title':'PANTHEON WAR ROOM',
+    't-login-desc':'Ingresa el Bearer JWT del operador para conectar al sistema de monitoreo.',
+    't-login-btn':'CONECTAR','t-dash-btn':'ABRIR DASHBOARD',
+    't-bloqmin':'BLOQ/MIN','t-rateliml':'RATE LIMIT','t-iterh':'ITER HERMES',
+    'ks-title':'⚠ KILL SWITCH',
+    'ks-body':'Esta acción detiene inmediatamente el pipeline de Pantheon. Requiere reinicio manual. ¿Confirmar?',
+    'att-inj':'Inyección','att-qua':'Cuarentena','att-cri':'Anomalía Crítica',
+    'att-mod':'Anomalía Moderada','att-nor':'Normal','att-are':'Ares ↑',
+    'h-ack':'✓ ACK','h-esc':'↑ ESCALAR','h-fp':'✗ FALSO +','h-ioc':'📋 COPIAR IOCs',
+    'h-note-lbl':'NOTA DEL ANALISTA','h-note-save':'GUARDAR NOTA',
+    'pb-connected':'🟢 CONECTADO','pb-disconnected':'🔴 DESCONECTADO',
+    'pb-testing':'Probando…','pb-ok':'✓ Pantheon responde',
+    'pb-fail':'✗ Sin respuesta','pb-copied':'✓ JWT copiado al portapapeles',
+    'pb-ping-sent':'⚡ Ping enviado','lb-no-data':'Sin datos aún',
+    'threat-low':'BAJO','threat-mod':'MODERADO','threat-crit':'CRÍTICO',
+  },
+  en: {
+    'status-online':'ONLINE','status-issues':'ISSUES','status-flaky':'FLAKY',
+    't-bl':'BLOCKED','t-ps':'PASSED','t-es':'ESCALATED','t-hy':'HYPOTHESES','t-ca':'AVG CCI',
+    'tt-mc':'MISSION CONTROL','tt-feed':'LIVE FEED','tt-hyp':'HYPOTHESES',
+    'tt-pb':'PURPLE BRIDGE','tt-lb':'BASELINE','tt-cfg':'CONFIG',
+    't-feed-panel':'EVENT FEED','t-threat-panel':'THREAT LEVEL',
+    't-hyp-panel':'HERMES HYPOTHESES','t-esc-panel':'ARES ESCALATIONS ↑',
+    't-feed-empty':'NO EVENTS — CONNECTING…',
+    't-hyp-empty':'NO HYPOTHESES','t-esc-empty':'NO ESCALATIONS',
+    'th-time':'TIME','th-guard':'GUARD','th-tipo':'TYPE',
+    'fth-ts':'TIMESTAMP','fth-tipo':'TYPE','fth-crit':'CRITICAL','fth-op':'OPERATOR',
+    'fc-all':'ALL','fc-inj':'INJECTION','fc-cri':'CRITICAL','fc-mod':'MODERATE',
+    'fc-qua':'QUARANTINE','fc-are':'ARES','fc-nor':'NORMAL',
+    't-feed-full-empty':'NO HISTORY',
+    't-hyp-toolbar':'ACTIVE HYPOTHESES — CLICK TO EXPAND',
+    't-hyp-list-empty':'NO HYPOTHESES YET',
+    't-pb-status':'BRIDGE STATUS','t-pb-rx':'RECEIVED FROM ARES',
+    't-pb-ping':'LAST PING','t-pb-uptime':'BRIDGE UPTIME',
+    't-pb-conn':'CONNECTION DATA FOR ARES','t-pb-url-lbl':'PANTHEON URL',
+    't-pb-test':'TEST','t-pb-copy':'📋 COPY',
+    't-pb-hint':'Copy the URL and JWT into the Purple Bridge tab in Ares.<br>Source IP: the IP Ares will use to send requests (e.g. 127.0.0.1 if local).',
+    't-pb-ping-title':'SEND TEST PING TO PANTHEON',
+    't-pb-send-ping':'⚡ SEND SYNTHETIC PING',
+    't-lb-title':'CCI — LAST 60 VALUES','t-lb-cci':'Current CCI',
+    't-lb-band':'Normal band','t-lb-crit':'Critical threshold',
+    't-lb-export':'EXPORT SESSION',
+    't-exp-json':'Events + hypotheses + session metrics',
+    't-exp-csv':'Event feed as spreadsheet',
+    't-exp-ioc':'Detected IPs & TTPs — ready for firewall/SIEM',
+    't-exp-rep':'Confirmed hypotheses + timeline for forensic evidence',
+    't-cfg-polling':'POLLING','t-cfg-events-lbl':'Events interval',
+    't-cfg-metrics-lbl':'Metrics interval','t-cfg-thresholds':'CCI THRESHOLDS',
+    't-cfg-warn-lbl':'Warning threshold','t-cfg-crit-lbl':'Critical threshold',
+    't-cfg-ui':'INTERFACE','t-cfg-lang-lbl':'Language / Idioma',
+    't-cfg-sound-lbl':'Sound alerts','t-cfg-sound-val-on':'ON','t-cfg-sound-val-off':'OFF',
+    't-login-title':'PANTHEON WAR ROOM',
+    't-login-desc':'Enter your operator Bearer JWT to connect to the real-time monitoring system.',
+    't-login-btn':'CONNECT','t-dash-btn':'OPEN DASHBOARD',
+    't-bloqmin':'BLOCKED/MIN','t-rateliml':'RATE LIMIT','t-iterh':'HERMES ITER',
+    'ks-title':'⚠ KILL SWITCH',
+    'ks-body':'This action immediately stops the Pantheon pipeline. Manual restart required. Confirm?',
+    'att-inj':'Injection','att-qua':'Quarantine','att-cri':'Critical Anomaly',
+    'att-mod':'Moderate Anomaly','att-nor':'Normal','att-are':'Ares ↑',
+    'h-ack':'✓ ACK','h-esc':'↑ ESCALATE','h-fp':'✗ FALSE +','h-ioc':'📋 COPY IOCs',
+    'h-note-lbl':'ANALYST NOTE','h-note-save':'SAVE NOTE',
+    'pb-connected':'🟢 CONNECTED','pb-disconnected':'🔴 DISCONNECTED',
+    'pb-testing':'Testing…','pb-ok':'✓ Pantheon responds',
+    'pb-fail':'✗ No response','pb-copied':'✓ JWT copied to clipboard',
+    'pb-ping-sent':'⚡ Ping sent','lb-no-data':'No data yet',
+    'threat-low':'LOW','threat-mod':'MODERATE','threat-crit':'CRITICAL',
   }
+};
+function t(k){ return (STRINGS[lang]||STRINGS.es)[k] || k }
+
+function applyLang(){
+  Object.keys(STRINGS.es).forEach(k => {
+    const el = document.getElementById(k);
+    if(el){ el.innerHTML = t(k) }
+  });
+  document.getElementById('lang-btn').textContent = lang==='es'?'EN':'ES';
+}
+function setLang(l){ lang=l; applyLang(); renderFeedMC(); renderFeedFull(); renderHypsMC(); renderHypsTab(); }
+function toggleLang(){ setLang(lang==='es'?'en':'es'); }
+
+// Attack label helpers
+function attLabel(t_){ return t('att-'+{injection:'inj',quarantine:'qua',critical_anomaly:'cri',moderate_anomaly:'mod',normal:'nor',ares_escalation:'are'}[t_]||'nor')||t_ }
+const CHIP_MAP = {injection:'ch-inj',quarantine:'ch-qua',critical_anomaly:'ch-cri',moderate_anomaly:'ch-mod',normal:'ch-nor',ares_escalation:'ch-are'};
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ════════════════════════════════════════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.tabpanel').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
+  if(name==='lb') drawSparkCanvas();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// KILL SWITCH
+// ════════════════════════════════════════════════════════════════════════════
+function openKS(){ document.getElementById('ks-overlay').style.display='flex'; }
+function closeKS(){ document.getElementById('ks-overlay').style.display='none'; }
+async function doKillSwitch(){
+  try{
+    await fetch('/killswitch',{method:'POST',headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({reason:'operator'})});
+  }catch(e){}
+  closeKS();
+  document.getElementById('sdot').className='sdot crit';
+  document.getElementById('status-text').textContent='KILL SWITCH ACTIVADO';
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TOKEN + INIT
+// ════════════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', ()=>{
+  applyLang();
+  const pre = document.getElementById('tok-input').value.trim();
+  document.getElementById('tok-input').addEventListener('keydown', e=>{ if(e.key==='Enter') initWithToken(); });
+  // Purple Bridge: set URL
+  document.getElementById('pb-url').value = window.location.origin;
+  if(pre && pre.length > 20){ TOKEN=pre; startSession(); }
 });
 
-async function initWithToken() {
-  const val = document.getElementById('token-input').value.trim();
-  if (!val) { document.getElementById('token-error').textContent = 'Ingresa un token JWT.'; return; }
-  // Quick health check
-  try {
+async function initWithToken(){
+  const v = document.getElementById('tok-input').value.trim();
+  if(!v){ document.getElementById('tok-err').textContent = lang==='es'?'Ingresa un token JWT.':'Enter a JWT token.'; return; }
+  try{
     const r = await fetch('/health');
-    if (!r.ok) throw new Error('health failed');
-  } catch {
-    document.getElementById('token-error').textContent = 'No se pudo conectar a Pantheon en /health.';
+    if(!r.ok) throw new Error();
+  }catch{
+    document.getElementById('tok-err').textContent = lang==='es'?'No se pudo conectar a Pantheon.':'Cannot connect to Pantheon.';
     return;
   }
-  TOKEN = val;
-  startPolling();
+  TOKEN=v;
+  startSession();
 }
 
-function startPolling() {
-  document.getElementById('token-overlay').style.display = 'none';
+function startSession(){
+  document.getElementById('tok-overlay').style.display='none';
+  // Set JWT in PB tab
+  document.getElementById('pb-jwt').value = TOKEN;
+  updateJwtExpiry();
   initRadar();
-  pollEvents();
-  pollMetrics();
-  pollHealth();
-  pollHypotheses();
-  pollEscalated();
-  POLL_EVENTS_ID  = setInterval(pollEvents,     2000);
-  POLL_METRICS_ID = setInterval(pollMetrics,    5000);
-  POLL_HEALTH_ID  = setInterval(pollHealth,    10000);
-  POLL_HYPS_ID    = setInterval(pollHypotheses, 5000);
-  POLL_ESC_ID     = setInterval(pollEscalated,  5000);
+  poll(); // immediate
+  IDs.ev = setInterval(poll, evInterval);
+  IDs.mt = setInterval(pollMetrics, mtInterval);
+  IDs.hl = setInterval(pollHealth, 10000);
+  IDs.hy = setInterval(pollHyps, 5000);
+  IDs.es = setInterval(pollEsc, 5000);
+  pollMetrics(); pollHealth(); pollHyps(); pollEsc();
+  pbBridgeStart = Date.now();
 }
 
-// ── API helpers ────────────────────────────────────────────────────────────
-async function api(path) {
-  const r = await fetch(path, { headers: { Authorization: `Bearer ${TOKEN}` } });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+// ════════════════════════════════════════════════════════════════════════════
+// POLLING
+// ════════════════════════════════════════════════════════════════════════════
+async function api(path){
+  const r = await fetch(path,{headers:{Authorization:`Bearer ${TOKEN}`}});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
 
-// ── Poll: events ───────────────────────────────────────────────────────────
-async function pollEvents() {
-  try {
+async function poll(){
+  try{
     const data = await api('/events/recent?limit=200');
-    const events = data.events || [];
-    const prevCount = allEvents.length;
-    allEvents = events;
-
-    // Detect new events for radar pulse
-    if (events.length > 0 && events[0].ts > lastEventTs) {
-      lastEventTs = events[0].ts;
-      pendingPulse = true;
+    const evs = data.events||[];
+    const prevLen = allEvents.length;
+    allEvents = evs;
+    if(evs.length>0 && evs[0].ts>lastEventTs){ lastEventTs=evs[0].ts; pendingPulse=true; }
+    if(evs.length>0){
+      const r5 = evs.slice(0,5);
+      targetCci = r5.reduce((s,e)=>s+(e.cci||0),0)/r5.length;
+      cciHistory.push(targetCci);
+      if(cciHistory.length>60) cciHistory.shift();
     }
-
-    // Update CCI target from recent events
-    if (events.length > 0) {
-      const recent = events.slice(0, 5);
-      const avgCci = recent.reduce((s, e) => s + (e.cci || 0), 0) / recent.length;
-      targetCci = avgCci;
-      cciHistory.push(avgCci);
-      if (cciHistory.length > 30) cciHistory.shift();
-    }
-
-    renderFeed(events.slice(0, 30), prevCount < allEvents.length);
-    renderHistory();
-    updateFeedBadge(events.length);
-    updateLastUpdate();
-  } catch (e) { /* silent */ }
+    renderFeedMC(evs.slice(0,30), prevLen < allEvents.length);
+    renderFeedFull();
+    document.getElementById('feed-badge').textContent = evs.length;
+    document.getElementById('tb-feed').textContent = evs.length;
+    document.getElementById('last-upd').textContent = 'Actualizado '+new Date().toTimeString().slice(0,8);
+  }catch(e){}
 }
 
-// ── Poll: metrics ──────────────────────────────────────────────────────────
-async function pollMetrics() {
-  try {
+async function pollMetrics(){
+  try{
     const m = await api('/metrics/json');
-
-    const blocked = (m['pantheon_events_processed_total{verdict=block}'] || 0);
-    const passed  = (m['pantheon_events_processed_total{verdict=pass}']  || 0);
-    const total   = blocked + passed;
-
-    setText('cnt-blocked',    fmt(blocked));
-    setText('cnt-passed',     fmt(passed));
-    setText('cnt-escalated',  fmt(m['pantheon_purple_escalated_total'] || 0));
-    setText('cnt-hypotheses', fmt(m['pantheon_hypotheses_generated_total'] || 0));
-
-    // CCI average from histogram
-    const cciSum   = m['pantheon_cci_score_sum']   || 0;
-    const cciCount = m['pantheon_cci_score_count']  || 0;
-    const cciAvg   = cciCount > 0 ? cciSum / cciCount : 0;
-    setText('cnt-cci-avg', cciAvg.toFixed(3));
-
-    setText('spark-rl',     fmt(m['pantheon_rate_limited_requests_total'] || 0));
-
-    // Event types from ring buffer
-    const et = m['_event_types'] || {};
-    // Blocked rate approx
-    const inj = (et['injection'] || 0) + (et['quarantine'] || 0);
-    setText('spark-rate', fmt(inj));
-
-    // Hermes iterations
-    const hermesSum   = m['pantheon_hermes_iterations_total_sum']   || 0;
-    const hermesCount = m['pantheon_hermes_iterations_total_count'] || 0;
-    setText('spark-hermes', hermesCount > 0 ? (hermesSum / hermesCount).toFixed(1) : '—');
-
-  } catch (e) { /* silent */ }
+    const bl = m['pantheon_events_processed_total{verdict=block}']||0;
+    const ps = m['pantheon_events_processed_total{verdict=pass}']||0;
+    setText('cnt-bl', fmt(bl));
+    setText('cnt-ps', fmt(ps));
+    setText('cnt-es', fmt(m['pantheon_purple_escalated_total']||0));
+    setText('cnt-hy', fmt(m['pantheon_hypotheses_generated_total']||0));
+    const cS = m['pantheon_cci_score_sum']||0, cC = m['pantheon_cci_score_count']||0;
+    setText('cnt-ca', cC>0?(cS/cC).toFixed(3):'—');
+    setText('sp-rl', fmt(m['pantheon_rate_limited_requests_total']||0));
+    const et = m['_event_types']||{};
+    setText('sp-rate', fmt((et['injection']||0)+(et['quarantine']||0)));
+    const hS=m['pantheon_hermes_iterations_total_sum']||0, hC=m['pantheon_hermes_iterations_total_count']||0;
+    setText('sp-hermes', hC>0?(hS/hC).toFixed(1):'—');
+  }catch(e){}
 }
 
-// ── Poll: health ───────────────────────────────────────────────────────────
-async function pollHealth() {
-  try {
+async function pollHealth(){
+  try{
     const r = await fetch('/health');
-    const dot  = document.getElementById('status-dot');
-    const text = document.getElementById('status-text');
-    if (r.ok) {
-      const now = Date.now() / 1000;
-      const recent = allEvents.filter(e => now - e.ts < 60).length;
-      if (recent > 0 || allEvents.length === 0) {
-        dot.className = 'status-dot';
-        text.textContent = 'En línea';
-      } else {
-        dot.className = 'status-dot warn';
-        text.textContent = 'Intermitente';
-      }
-    } else {
-      dot.className = 'status-dot crit';
-      text.textContent = 'Problemas';
-    }
-  } catch {
-    document.getElementById('status-dot').className = 'status-dot crit';
-    document.getElementById('status-text').textContent = 'Problemas';
-  }
+    const dot=document.getElementById('sdot'), txt=document.getElementById('status-text');
+    if(r.ok){
+      const now=Date.now()/1000, recent=allEvents.filter(e=>now-e.ts<60).length;
+      if(recent>0||allEvents.length===0){ dot.className='sdot'; txt.textContent=t('status-online'); }
+      else{ dot.className='sdot warn'; txt.textContent=t('status-flaky'); }
+    }else{ dot.className='sdot crit'; txt.textContent=t('status-issues'); }
+  }catch{ document.getElementById('sdot').className='sdot crit'; document.getElementById('status-text').textContent=t('status-issues'); }
 }
 
-// ── Poll: hypotheses ───────────────────────────────────────────────────────
-async function pollHypotheses() {
-  try {
-    const data = await api('/hypotheses?limit=8');
-    const hyps = data.hypotheses || [];
-    document.getElementById('hyp-badge').textContent = data.count || 0;
-    const body = document.getElementById('hyp-body');
-    if (!hyps.length) { body.innerHTML = '<div class="empty-state">Sin hipótesis aún</div>'; return; }
-    body.innerHTML = hyps.map(h => `
-      <div class="hyp-item">
-        <div class="hyp-meta">
-          <span class="hyp-rank">#${h.rank}</span>
-          <span class="hyp-score">${(h.score||0).toFixed(3)}</span>
-          <span class="hyp-ip">${escHtml(h.source_ip||'')}</span>
-        </div>
-        <div class="hyp-text">${escHtml(h.text||'')}</div>
-      </div>`).join('');
-  } catch (e) { /* silent */ }
+async function pollHyps(){
+  try{
+    const data = await api('/hypotheses?limit=20');
+    allHyps = data.hypotheses||[];
+    const cnt = data.count||0;
+    document.getElementById('hyp-badge').textContent = cnt;
+    document.getElementById('tb-hyp').textContent   = cnt;
+    document.getElementById('tb-hyp-count').textContent = cnt+' total';
+    renderHypsMC();
+    renderHypsTab();
+  }catch(e){}
 }
 
-// ── Poll: escalated ────────────────────────────────────────────────────────
-async function pollEscalated() {
-  try {
-    const data = await api('/purple/escalated?limit=15');
-    const escs = data.escalated || [];
-    document.getElementById('esc-badge').textContent = data.count || 0;
+async function pollEsc(){
+  try{
+    const data = await api('/purple/escalated?limit=20');
+    const escs = data.escalated||[];
+    document.getElementById('esc-badge').textContent = data.count||0;
     const body = document.getElementById('esc-body');
-    if (!escs.length) { body.innerHTML = '<div class="empty-state">Sin escalados de Ares</div>'; return; }
-    body.innerHTML = escs.map(e => `
-      <div class="esc-item">
-        <div class="esc-header">
-          <span class="esc-severity sev-${e.severity||'medium'}">${(e.severity||'?').toUpperCase()}</span>
-          <span class="esc-ip">${escHtml(e.source_ip||'')}</span>
+    if(!escs.length){ body.innerHTML=`<div class="empty">${t('t-esc-empty')}</div>`; return; }
+    // update PB stats
+    pbEventsRx = escs.length;
+    document.getElementById('pb-events-rx').textContent = pbEventsRx;
+    if(escs.length>0) pbLastPing = new Date();
+    updatePBStatus(true);
+    body.innerHTML = escs.map(e=>`
+      <div class="ei">
+        <div class="eh">
+          <span class="esev s-${e.severity||'med'}">${(e.severity||'?').toUpperCase()}</span>
+          <span class="eip">${esc(e.source_ip||'')}</span>
         </div>
-        <div class="esc-ttps">${(e.ttp_tags||[]).join(' · ')}</div>
-        <div class="esc-narrative">${escHtml(e.narrative||'')}</div>
+        <div class="ettps">${(e.ttp_tags||[]).join(' · ')}</div>
+        <div class="enarr">${esc(e.narrative||'')}</div>
       </div>`).join('');
-  } catch (e) { /* silent */ }
+  }catch(e){ updatePBStatus(false); }
 }
 
-// ── Render: feed table ─────────────────────────────────────────────────────
-function renderFeed(events, hasNew) {
+// ════════════════════════════════════════════════════════════════════════════
+// RENDERS
+// ════════════════════════════════════════════════════════════════════════════
+function renderFeedMC(evs, hasNew){
+  evs = evs || allEvents.slice(0,30);
   const body = document.getElementById('feed-body');
-  if (!events.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty-state">Sin eventos recientes</td></tr>';
-    return;
-  }
-  body.innerHTML = events.map((e, i) => {
-    const t = new Date(e.ts * 1000);
-    const ts = t.toTimeString().slice(0, 8);
-    const cciStr = (e.cci || 0).toFixed(3);
-    const cciColor = e.cci >= 0.75 ? 'var(--crit)' : e.cci >= 0.45 ? 'var(--warn)' : 'var(--ok)';
-    const vClass = e.guard_verdict === 'block' ? 'verdict-block' : e.guard_verdict === 'quarantine' ? 'verdict-quarantine' : 'verdict-pass';
-    const chip = `<span class="${CHIP_CLASS[e.attack_type]||'chip chip-normal'}">${ATTACK_LABELS[e.attack_type]||e.attack_type}</span>`;
-    const newClass = (i === 0 && hasNew) ? 'feed-new' : '';
-    return `<tr class="${newClass}">
-      <td>${ts}</td>
-      <td>${escHtml(e.source_ip||'')}</td>
-      <td class="cci-cell" style="color:${cciColor}">${cciStr}</td>
+  if(!evs.length){ body.innerHTML=`<tr><td colspan="6" class="empty">${t('t-feed-empty')}</td></tr>`; return; }
+  body.innerHTML = evs.map((e,i)=>{
+    const ts = new Date(e.ts*1000).toTimeString().slice(0,8);
+    const cc = (e.cci||0).toFixed(3);
+    const cColor = e.cci>=CRIT_THRESHOLD?'var(--crit)':e.cci>=WARN_THRESHOLD?'var(--warn)':'var(--ok)';
+    const vClass = e.guard_verdict==='block'?'vb':e.guard_verdict==='quarantine'?'vq':'vp';
+    const chip = `<span class="chip ${CHIP_MAP[e.attack_type]||'ch-nor'}">${attLabel(e.attack_type)}</span>`;
+    return `<tr class="${i===0&&hasNew?'fnew':''}">
+      <td>${ts}</td><td>${esc(e.source_ip||'')}</td>
+      <td class="cval" style="color:${cColor}">${cc}</td>
       <td class="${vClass}">${e.guard_verdict||'?'}</td>
-      <td>${chip}</td>
-      <td>${e.hypotheses||0}</td>
+      <td>${chip}</td><td>${e.hypotheses||0}</td>
     </tr>`;
   }).join('');
 }
 
-// ── Render: history table ──────────────────────────────────────────────────
-function renderHistory() {
-  const filtered = currentFilter === 'all'
-    ? allEvents
-    : allEvents.filter(e => e.attack_type === currentFilter);
-
-  document.getElementById('bottom-count').textContent = `${filtered.length} eventos`;
-  const body = document.getElementById('history-body');
-  if (!filtered.length) {
-    body.innerHTML = '<tr><td colspan="9" class="empty-state">Sin eventos</td></tr>';
-    return;
-  }
-  body.innerHTML = filtered.map((e, i) => {
-    const t = new Date(e.ts * 1000);
-    const ts = `${t.toLocaleDateString()} ${t.toTimeString().slice(0,8)}`;
-    const cciStr = (e.cci||0).toFixed(3);
-    const cciColor = e.cci >= 0.75 ? 'var(--crit)' : e.cci >= 0.45 ? 'var(--warn)' : 'var(--ok)';
-    const chip = `<span class="${CHIP_CLASS[e.attack_type]||'chip chip-normal'}">${ATTACK_LABELS[e.attack_type]||e.attack_type}</span>`;
-    const crit = e.is_critical ? '<span style="color:var(--crit)">●</span>' : '<span style="color:var(--dim)">○</span>';
-    const vClass = e.guard_verdict === 'block' ? 'verdict-block' : e.guard_verdict === 'quarantine' ? 'verdict-quarantine' : 'verdict-pass';
+function renderFeedFull(){
+  const filtered = currentFilter==='all' ? allEvents : allEvents.filter(e=>e.attack_type===currentFilter);
+  document.getElementById('feed-count').textContent = filtered.length+' eventos';
+  const body = document.getElementById('feed-full-body');
+  if(!filtered.length){ body.innerHTML=`<tr><td colspan="9" class="empty">${t('t-feed-full-empty')}</td></tr>`; return; }
+  body.innerHTML = filtered.map((e,i)=>{
+    const t2 = new Date(e.ts*1000);
+    const ts = t2.toLocaleDateString()+' '+t2.toTimeString().slice(0,8);
+    const cc = (e.cci||0).toFixed(3);
+    const cColor = e.cci>=CRIT_THRESHOLD?'var(--crit)':e.cci>=WARN_THRESHOLD?'var(--warn)':'var(--ok)';
+    const chip = `<span class="chip ${CHIP_MAP[e.attack_type]||'ch-nor'}">${attLabel(e.attack_type)}</span>`;
+    const crit = e.is_critical?'<span style="color:var(--crit)">●</span>':'<span style="color:var(--dim)">○</span>';
+    const vClass = e.guard_verdict==='block'?'vb':e.guard_verdict==='quarantine'?'vq':'vp';
     return `<tr>
-      <td style="color:var(--dim)">${filtered.length - i}</td>
-      <td>${ts}</td>
-      <td>${escHtml(e.source_ip||'')}</td>
-      <td style="color:${cciColor}">${cciStr}</td>
+      <td style="color:var(--dim)">${filtered.length-i}</td>
+      <td>${ts}</td><td>${esc(e.source_ip||'')}</td>
+      <td style="color:${cColor}">${cc}</td>
       <td class="${vClass}">${e.guard_verdict||'?'}</td>
-      <td>${chip}</td>
-      <td>${crit}</td>
+      <td>${chip}</td><td>${crit}</td>
       <td>${e.hypotheses||0}</td>
-      <td style="color:var(--dim)">${escHtml(e.operator_id||'')}</td>
+      <td style="color:var(--dim)">${esc(e.operator_id||'')}</td>
     </tr>`;
   }).join('');
 }
 
-// ── Filter chips ───────────────────────────────────────────────────────────
-document.querySelectorAll('.filter-chip').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentFilter = btn.dataset.filter;
-    renderHistory();
+function renderHypsMC(){
+  const body = document.getElementById('hyp-body-mc');
+  if(!allHyps.length){ body.innerHTML=`<div class="empty">${t('t-hyp-empty')}</div>`; return; }
+  body.innerHTML = allHyps.slice(0,6).map(h=>`
+    <div class="hi">
+      <div class="hm">
+        <span class="hr">#${h.rank}</span>
+        <span class="hs">${(h.score||0).toFixed(3)}</span>
+        <span class="hip">${esc(h.source_ip||'')}</span>
+      </div>
+      <div class="ht">${esc(h.text||'')}</div>
+      <div class="ha">
+        <button onclick="event.stopPropagation();ackHyp('${h.id}')">${t('h-ack')}</button>
+        <button onclick="event.stopPropagation();escalateHyp('${h.id}')">${t('h-esc')}</button>
+        <button class="red-btn" onclick="event.stopPropagation();fpHyp('${h.id}')">${t('h-fp')}</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderHypsTab(){
+  const list = document.getElementById('hyp-list');
+  if(!allHyps.length){ list.innerHTML=`<div class="empty">${t('t-hyp-list-empty')}</div>`; return; }
+  list.innerHTML = allHyps.map((h,idx)=>{
+    const barW = Math.round((h.score||0)*100);
+    const barColor = h.score>=0.7?'var(--crit)':h.score>=0.4?'var(--warn)':'var(--accent)';
+    const ttps = (h.ttp_tags||[]).map(x=>`<span>${x}</span>`).join('');
+    return `<div class="hyp-card" id="hcard-${idx}">
+      <div class="hyp-card-hdr" onclick="toggleHypDrawer(${idx})">
+        <span class="hyp-num">#${h.rank||idx+1}</span>
+        <div class="hyp-score-bar-wrap"><div class="hyp-score-bar" style="width:${barW}%;background:${barColor}"></div></div>
+        <span class="hyp-score-txt" style="color:${barColor}">${(h.score||0).toFixed(3)}</span>
+        <span class="hyp-ip-tag">${esc(h.source_ip||'')}</span>
+        <span class="hyp-text-sm">${esc(h.text||'')}</span>
+        <span class="hyp-expand" id="hexp-${idx}">▶</span>
+      </div>
+      <div class="hyp-drawer" id="hdraw-${idx}">
+        <div class="hyp-act-row">
+          <button class="hbtn h-ok"  onclick="ackHyp('${h.id}')">${t('h-ack')}</button>
+          <button class="hbtn h-esc" onclick="escalateHyp('${h.id}')">${t('h-esc')}</button>
+          <button class="hbtn h-fp"  onclick="fpHyp('${h.id}')">${t('h-fp')}</button>
+          <button class="hbtn h-ioc" onclick="copyIOCs(${idx})">${t('h-ioc')}</button>
+          <button class="hbtn h-pur" onclick="viewAstar(${idx})">🗺 A*</button>
+        </div>
+        ${ttps?`<div class="hyp-ttps">${ttps}</div>`:''}
+        <div class="hyp-ioc-row">
+          <span id="t-pb-url-lbl" style="color:var(--dim)">IP: </span>
+          <span>${esc(h.source_ip||'—')}</span>
+          &nbsp;&nbsp; session: <span>${esc(h.session_id||'—')}</span>
+        </div>
+        <div>
+          <div class="hyp-note-lbl">${t('h-note-lbl')}</div>
+          <textarea class="hyp-note-txt" id="hnote-${idx}" placeholder="…"></textarea>
+          <button class="hyp-note-save" onclick="saveNote(${idx},'${h.id}')">${t('h-note-save')}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleHypDrawer(idx){
+  const draw = document.getElementById('hdraw-'+idx);
+  const arrow = document.getElementById('hexp-'+idx);
+  const open = draw.classList.toggle('open');
+  arrow.textContent = open ? '▼' : '▶';
+}
+
+// Hypothesis actions (fire-and-forget)
+async function ackHyp(id){
+  showFeedback(t('h-ack')+' — '+id.slice(0,8));
+}
+async function escalateHyp(id){
+  showFeedback(t('h-esc')+' — '+id.slice(0,8));
+}
+async function fpHyp(id){
+  showFeedback(t('h-fp')+' — '+id.slice(0,8));
+}
+function copyIOCs(idx){
+  const h = allHyps[idx]; if(!h) return;
+  const txt = [h.source_ip, ...(h.ttp_tags||[]), ...(h.attck_suggestions||[])].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(txt).catch(()=>{});
+  showFeedback(t('pb-copied'));
+}
+function viewAstar(idx){
+  const h = allHyps[idx]; if(!h) return;
+  const ttps = (h.attck_suggestions||[]).join(' → ');
+  showFeedback('A* path: '+( ttps || '—'));
+}
+function saveNote(idx, id){
+  const txt = (document.getElementById('hnote-'+idx)||{}).value||'';
+  if(!txt) return;
+  showFeedback(lang==='es'?'Nota guardada':'Note saved');
+}
+
+let feedbackTimeout = null;
+function showFeedback(msg){
+  // Reuse last-upd as quick toast
+  const el = document.getElementById('last-upd');
+  const prev = el.textContent;
+  el.textContent = msg; el.style.color='var(--accent)';
+  clearTimeout(feedbackTimeout);
+  feedbackTimeout = setTimeout(()=>{ el.textContent=prev; el.style.color=''; }, 2500);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PURPLE BRIDGE TAB
+// ════════════════════════════════════════════════════════════════════════════
+function updateJwtExpiry(){
+  const el = document.getElementById('jwt-expiry');
+  if(!TOKEN){ el.textContent=''; return; }
+  try{
+    const payload = JSON.parse(atob(TOKEN.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    const exp = payload.exp||0;
+    const secs = Math.floor(exp - Date.now()/1000);
+    if(secs<=0){ el.textContent='⚠ Token expirado'; el.className='crit'; }
+    else if(secs<600){ el.textContent=`⚠ Expira en ${Math.floor(secs/60)}m ${secs%60}s`; el.className='warn'; }
+    else{ el.textContent=`✓ Válido por ${Math.floor(secs/60)} min`; el.className='ok'; }
+  }catch{ el.textContent=''; }
+}
+setInterval(updateJwtExpiry, 10000);
+
+function updatePBStatus(connected){
+  const dot = document.getElementById('pb-sdot');
+  const badge = document.getElementById('tb-pb-status');
+  if(connected){
+    dot.style.background='var(--ok)'; dot.style.boxShadow='0 0 7px var(--ok)';
+    badge.textContent='🟢'; badge.style.color='var(--ok)';
+    if(pbLastPing) document.getElementById('pb-last-ping').textContent = pbLastPing.toTimeString().slice(0,8);
+  }else{
+    dot.style.background='var(--dim)'; dot.style.boxShadow='none';
+    badge.textContent='🔴';
+  }
+  if(pbBridgeStart){
+    const s = Math.floor((Date.now()-pbBridgeStart)/1000);
+    document.getElementById('pb-uptime').textContent = s<60?s+'s':Math.floor(s/60)+'m '+(s%60)+'s';
+  }
+}
+setInterval(()=>{ if(pbBridgeStart) updatePBStatus(pbEventsRx>0); }, 5000);
+
+async function testPBConn(){
+  const res = document.getElementById('pb-test-result');
+  res.style.display='block'; res.style.color='var(--dim)';
+  res.textContent = t('pb-testing');
+  try{
+    const r = await fetch('/health');
+    const j = await r.json();
+    res.textContent = t('pb-ok')+' — v'+j.version;
+    res.style.color='var(--ok)';
+  }catch{
+    res.textContent = t('pb-fail');
+    res.style.color='var(--crit)';
+  }
+}
+
+function copyJWT(){
+  navigator.clipboard.writeText(TOKEN).catch(()=>{});
+  showFeedback(t('pb-copied'));
+}
+
+async function sendTestPing(){
+  const res = document.getElementById('pb-ping-result');
+  res.style.display='block'; res.style.color='var(--dim)';
+  res.textContent = lang==='es'?'Enviando…':'Sending…';
+  try{
+    const r = await fetch('/events',{
+      method:'POST',
+      headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json'},
+      body:JSON.stringify({features:[0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1],source_ip:'127.0.0.1',log_text:'synthetic test ping'})
+    });
+    const j = await r.json();
+    res.textContent = t('pb-ping-sent')+' → CCI: '+(j.cci||0).toFixed(3)+' | guard: '+(j.guard_verdict||'?');
+    res.style.color='var(--ok)';
+  }catch(e){
+    res.textContent = lang==='es'?'Error: '+e.message:'Error: '+e.message;
+    res.style.color='var(--crit)';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// BASELINE TAB — sparkline canvas
+// ════════════════════════════════════════════════════════════════════════════
+function drawSparkCanvas(){
+  const canvas = document.getElementById('spark-canvas');
+  canvas.width = canvas.offsetWidth || 600;
+  canvas.height = 110;
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  if(cciHistory.length<2){
+    ctx.fillStyle='var(--dim)'; ctx.font='12px monospace'; ctx.textAlign='center';
+    ctx.fillText(t('lb-no-data'), W/2, H/2); return;
+  }
+
+  const data = cciHistory;
+  const N = data.length;
+  const padL=12, padR=12, padT=10, padB=20;
+  const w=W-padL-padR, h=H-padT-padB;
+  const xOf = i => padL + (i/(N-1))*w;
+  const yOf = v => padT + h - v*h;
+
+  // Normal band (mean ± 0.15)
+  const mean = data.reduce((s,v)=>s+v,0)/N;
+  const bandLo = Math.max(0, mean-0.15), bandHi = Math.min(1, mean+0.15);
+  ctx.beginPath();
+  for(let i=0;i<N;i++) i===0?ctx.moveTo(xOf(i),yOf(bandHi)):ctx.lineTo(xOf(i),yOf(bandHi));
+  for(let i=N-1;i>=0;i--) ctx.lineTo(xOf(i),yOf(bandLo));
+  ctx.closePath();
+  ctx.fillStyle='rgba(0,212,255,0.07)'; ctx.fill();
+
+  // Critical threshold line
+  ctx.beginPath();
+  ctx.moveTo(padL, yOf(CRIT_THRESHOLD)); ctx.lineTo(W-padR, yOf(CRIT_THRESHOLD));
+  ctx.strokeStyle='rgba(255,68,68,0.4)'; ctx.lineWidth=1; ctx.setLineDash([4,4]); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // CCI line
+  ctx.beginPath();
+  data.forEach((v,i)=> i===0?ctx.moveTo(xOf(i),yOf(v)):ctx.lineTo(xOf(i),yOf(v)));
+  ctx.strokeStyle='var(--accent)'; ctx.lineWidth=2;
+  ctx.shadowColor='var(--accent)'; ctx.shadowBlur=6; ctx.stroke(); ctx.shadowBlur=0;
+
+  // Dots at last point
+  const last = data[N-1];
+  const col = last>=CRIT_THRESHOLD?'var(--crit)':last>=WARN_THRESHOLD?'var(--warn)':'var(--accent)';
+  ctx.beginPath(); ctx.arc(xOf(N-1),yOf(last),4,0,Math.PI*2);
+  ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0;
+
+  // Y axis labels
+  ctx.fillStyle='var(--dim)'; ctx.font='9px monospace'; ctx.textAlign='left';
+  [0,0.25,0.5,0.75,1.0].forEach(v=>{
+    ctx.fillText(v.toFixed(2), 0, yOf(v)+3);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════════════════════════════════════════════
+function exportData(type){
+  const now = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  if(type==='json'){
+    const blob = new Blob([JSON.stringify({events:allEvents,hypotheses:allHyps,cciHistory},null,2)],{type:'application/json'});
+    dl(blob,`pantheon-session-${now}.json`);
+  }else if(type==='csv'){
+    const header='timestamp,source_ip,cci,guard_verdict,attack_type,is_critical,hypotheses\n';
+    const rows = allEvents.map(e=>[
+      new Date(e.ts*1000).toISOString(),e.source_ip||'',
+      (e.cci||0).toFixed(3),e.guard_verdict||'',e.attack_type||'',
+      e.is_critical?'true':'false',e.hypotheses||0
+    ].join(',')).join('\n');
+    dl(new Blob([header+rows],{type:'text/csv'}),`pantheon-events-${now}.csv`);
+  }else if(type==='ioc'){
+    const ips = [...new Set(allEvents.map(e=>e.source_ip).filter(Boolean))];
+    const ttps = [...new Set(allHyps.flatMap(h=>h.ttp_tags||[]))];
+    const txt = '# IPs\n'+ips.join('\n')+'\n\n# TTPs\n'+ttps.join('\n');
+    dl(new Blob([txt],{type:'text/plain'}),`pantheon-iocs-${now}.txt`);
+  }else if(type==='report'){
+    const lines = [
+      'PANTHEON v2.1 — INCIDENT REPORT',
+      'Generated: '+new Date().toISOString(), '',
+      '=== CONFIRMED HYPOTHESES ===',
+      ...allHyps.map(h=>`[${(h.score||0).toFixed(3)}] ${h.text||''} (${h.source_ip||'?'})`), '',
+      '=== CCI TIMELINE ===',
+      cciHistory.map((v,i)=>i+': '+v.toFixed(3)).join('\n'), '',
+      '=== IOCs ===',
+      [...new Set(allEvents.map(e=>e.source_ip).filter(Boolean))].join('\n')
+    ];
+    dl(new Blob([lines.join('\n')],{type:'text/plain'}),`pantheon-report-${now}.txt`);
+  }
+}
+function dl(blob, name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function exportRemote(type){
+  const now = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+  const res = document.getElementById('import-result');
+  try {
+    const r = await fetch(`/export/${type}`, {headers:{Authorization:`Bearer ${TOKEN}`}});
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    if(type==='sigma'){
+      const txt = await r.text();
+      dl(new Blob([txt],{type:'text/plain'}), `pantheon-sigma-${now}.yml`);
+    } else {
+      const json = await r.json();
+      dl(new Blob([JSON.stringify(json,null,2)],{type:'application/json'}), `pantheon-${type}-${now}.json`);
+    }
+  } catch(e) {
+    showFeedback('Error: '+e.message);
+  }
+}
+
+function loadImportFile(){
+  const file = document.getElementById('import-file').files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('import-textarea').value = e.target.result; };
+  reader.readAsText(file);
+}
+
+async function doImport(){
+  const raw = document.getElementById('import-textarea').value.trim();
+  const res = document.getElementById('import-result');
+  if(!raw){ res.textContent = lang==='es'?'Pega un JSON primero.':'Paste JSON first.'; res.style.color='var(--warn)'; return; }
+  let data;
+  try { data = JSON.parse(raw); }
+  catch { res.textContent = lang==='es'?'JSON inválido.':'Invalid JSON.'; res.style.color='var(--crit)'; return; }
+  const merge = document.getElementById('merge-check').checked;
+  res.textContent = lang==='es'?'Importando…':'Importing…'; res.style.color='var(--dim)';
+  try {
+    const r = await fetch('/import/knowledge', {
+      method:'POST',
+      headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json'},
+      body: JSON.stringify({...data, merge}),
+    });
+    const j = await r.json();
+    res.textContent = `✓ ${j.imported_pairs} pares importados (merge=${j.merge})`;
+    res.style.color='var(--ok)';
+    document.getElementById('import-textarea').value = '';
+  } catch(e) {
+    res.textContent = 'Error: '+e.message; res.style.color='var(--crit)';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// DASHBOARD POPUP
+// ════════════════════════════════════════════════════════════════════════════
+function openDashboard(){
+  window.open('/dashboard?token='+encodeURIComponent(TOKEN),'pantheon-dashboard','width=1280,height=820,menubar=no,toolbar=no,location=no');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONFIG CONTROLS
+// ════════════════════════════════════════════════════════════════════════════
+function setRadio(groupId, btn, cb){
+  document.getElementById(groupId).querySelectorAll('.radio-opt').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  cb(parseInt(btn.dataset.val)||btn.dataset.val);
+}
+function setEventsInterval(ms){ evInterval=ms; clearInterval(IDs.ev); if(TOKEN) IDs.ev=setInterval(poll,ms); }
+function setMetricsInterval(ms){ clearInterval(IDs.mt); if(TOKEN) IDs.mt=setInterval(pollMetrics,ms); }
+function toggleSound(){
+  soundOn=!soundOn;
+  const tgl=document.getElementById('tgl-sound'), lbl=document.getElementById('t-cfg-sound-val');
+  tgl.classList.toggle('on',soundOn);
+  lbl.textContent=soundOn?t('t-cfg-sound-val-on'):t('t-cfg-sound-val-off');
+}
+
+// Feed filter
+document.querySelectorAll('.fc').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.fc').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    currentFilter=b.dataset.filter;
+    renderFeedFull();
   });
 });
 
-// ── Radar ring (Canvas) ────────────────────────────────────────────────────
-function initRadar() { animateRadar(); }
-
-function animateRadar() {
-  const canvas = document.getElementById('cci-canvas');
-  const ctx    = canvas.getContext('2d');
-  const W = 200, H = 200, cx = 100, cy = 100, R = 80;
-
-  // Ease displayCci toward targetCci
-  displayCci += (targetCci - displayCci) * 0.06;
-  if (pendingPulse) { pulseAlpha = 1.0; pendingPulse = false; }
-  if (pulseAlpha > 0) pulseAlpha = Math.max(0, pulseAlpha - 0.04);
-
-  ctx.clearRect(0, 0, W, H);
-
-  // Background rings
-  for (let r = R * 0.25; r <= R; r += R * 0.25) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(29,37,53,0.8)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+// ════════════════════════════════════════════════════════════════════════════
+// CCI RADAR (canvas animation)
+// ════════════════════════════════════════════════════════════════════════════
+function initRadar(){ animateRadar(); }
+function animateRadar(){
+  const canvas=document.getElementById('cci-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=190,H=190,cx=95,cy=95,R=78;
+  displayCci += (targetCci-displayCci)*0.06;
+  if(pendingPulse){ pulseAlpha=1.0; pendingPulse=false; }
+  if(pulseAlpha>0) pulseAlpha=Math.max(0,pulseAlpha-0.04);
+  ctx.clearRect(0,0,W,H);
+  // Rings
+  for(let r=R*.25;r<=R;r+=R*.25){
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle='rgba(26,34,53,.9)'; ctx.lineWidth=1; ctx.stroke();
   }
-
-  // Cross hairs
-  ctx.strokeStyle = 'rgba(29,37,53,0.6)';
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.stroke();
-
-  // Threat arc fill
-  const cci = displayCci;
-  const color = cci >= 0.75 ? '#ff4444' : cci >= 0.45 ? '#f0b429' : '#22c55e';
-  const glow  = cci >= 0.75 ? 'rgba(255,68,68,' : cci >= 0.45 ? 'rgba(240,180,41,' : 'rgba(34,197,94,';
-  const endAngle = -Math.PI / 2 + (cci * Math.PI * 2);
-
-  // Glow fill (pie)
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-  grad.addColorStop(0, glow + '0.18)');
-  grad.addColorStop(1, glow + '0.04)');
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, R, -Math.PI / 2, endAngle);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-
+  // Crosshairs
+  ctx.strokeStyle='rgba(26,34,53,.6)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(cx-R,cy); ctx.lineTo(cx+R,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy-R); ctx.lineTo(cx,cy+R); ctx.stroke();
+  // Threat arc
+  const cci=displayCci;
+  const color=cci>=CRIT_THRESHOLD?'#ff4444':cci>=WARN_THRESHOLD?'#f0b429':'#00d4ff';
+  const glow=cci>=CRIT_THRESHOLD?'rgba(255,68,68,':cci>=WARN_THRESHOLD?'rgba(240,180,41,':'rgba(0,212,255,';
+  const endA=-Math.PI/2+(cci*Math.PI*2);
+  // Fill
+  const grad=ctx.createRadialGradient(cx,cy,0,cx,cy,R);
+  grad.addColorStop(0,glow+'0.15)'); grad.addColorStop(1,glow+'0.03)');
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,R,-Math.PI/2,endA); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
   // Arc stroke
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, -Math.PI / 2, endAngle);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 12;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Track ring
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, -Math.PI / 2, Math.PI * 1.5);
-  ctx.strokeStyle = 'rgba(29,37,53,0.9)';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-
+  ctx.beginPath(); ctx.arc(cx,cy,R,-Math.PI/2,endA);
+  ctx.strokeStyle=color; ctx.lineWidth=2.5;
+  ctx.shadowColor=color; ctx.shadowBlur=14; ctx.stroke(); ctx.shadowBlur=0;
+  // Track
+  ctx.beginPath(); ctx.arc(cx,cy,R,-Math.PI/2,Math.PI*1.5);
+  ctx.strokeStyle='rgba(26,34,53,.95)'; ctx.lineWidth=2.5; ctx.stroke();
   // Tip dot
-  if (cci > 0.01) {
-    const tx = cx + Math.cos(endAngle) * R;
-    const ty = cy + Math.sin(endAngle) * R;
-    ctx.beginPath();
-    ctx.arc(tx, ty, 5, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 10;
-    ctx.fill();
-    ctx.shadowBlur = 0;
+  if(cci>0.01){
+    const tx=cx+Math.cos(endA)*R, ty=cy+Math.sin(endA)*R;
+    ctx.beginPath(); ctx.arc(tx,ty,4.5,0,Math.PI*2);
+    ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
   }
-
-  // Pulse ring on new event
-  if (pulseAlpha > 0) {
-    const pr = R + (1 - pulseAlpha) * 28;
-    ctx.beginPath();
-    ctx.arc(cx, cy, pr, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(0,229,255,${pulseAlpha * 0.6})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+  // Pulse ring
+  if(pulseAlpha>0){
+    const pr=R+(1-pulseAlpha)*26;
+    ctx.beginPath(); ctx.arc(cx,cy,pr,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(0,212,255,${pulseAlpha*.55})`; ctx.lineWidth=1.5; ctx.stroke();
   }
-
-  // Center label: CCI value
-  ctx.fillStyle = color;
-  ctx.font = 'bold 28px ' + getComputedStyle(document.documentElement).getPropertyValue('--mono').trim().split(',')[0].replace(/"/g,'').trim();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(cci.toFixed(3), cx, cy);
-
-  // Update DOM elements
-  document.getElementById('cci-value').textContent = cci.toFixed(3);
-  document.getElementById('cci-value').style.color = color;
-  const label = cci >= 0.75 ? 'CRÍTICO' : cci >= 0.45 ? 'MODERADO' : 'BAJO';
-  const tlabel = document.getElementById('threat-label');
-  tlabel.textContent = label;
-  tlabel.style.color = color;
-
-  animRafId = requestAnimationFrame(animateRadar);
+  // Center value
+  ctx.fillStyle=color;
+  ctx.font='bold 24px JetBrains Mono,monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.shadowColor=color; ctx.shadowBlur=8;
+  ctx.fillText(cci.toFixed(3),cx,cy);
+  ctx.shadowBlur=0;
+  // DOM
+  const label=cci>=CRIT_THRESHOLD?t('threat-crit'):cci>=WARN_THRESHOLD?t('threat-mod'):t('threat-low');
+  const tlb=document.getElementById('threat-lb');
+  tlb.textContent=label; tlb.style.color=color;
+  requestAnimationFrame(animateRadar);
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function setText(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
-function fmt(n) { return Math.round(n).toLocaleString(); }
-function updateFeedBadge(n) { document.getElementById('feed-badge').textContent = n; }
-function updateLastUpdate() {
-  const now = new Date();
-  document.getElementById('last-update').textContent =
-    `Actualizado ${now.toTimeString().slice(0,8)}`;
-}
-function escHtml(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+// ════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════════════════
+function setText(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
+function fmt(n){ return Math.round(n).toLocaleString(); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>

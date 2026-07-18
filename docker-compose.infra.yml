@@ -1,0 +1,64 @@
+# Infraestructura mínima para desarrollo — solo los 3 servicios de datos.
+# La app (uvicorn) corre fuera de Docker con --reload.
+# Uso: docker compose -f docker-compose.infra.yml up -d
+
+networks:
+  pantheon-net:
+    name: pantheon-net
+    driver: bridge
+
+volumes:
+  qdrant_data:
+  postgres_data:
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.6
+    container_name: pantheon-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - pantheon-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: pantheon-postgres
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-pantheon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pantheon}
+      POSTGRES_DB:       ${POSTGRES_DB:-pantheon}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pantheon-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pantheon}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: pantheon-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - pantheon-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

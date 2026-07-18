@@ -282,6 +282,75 @@ class ATTCKGraph:
             return self._graph[src][tgt]["weight"]
         return None
 
+    # ── Exportación / importación de conocimiento ─────────────────────────────
+
+    def export_weights(self) -> dict:
+        """Serializa co-ocurrencias y pesos aprendidos para transferencia entre instancias.
+
+        Solo exporta aristas con peso < 1.0 (las que fueron actualizadas por episodios
+        reales). Las aristas en peso 1.0 son el grafo base y no aportan conocimiento nuevo.
+        """
+        return {
+            "version": "1.0",
+            "cooccurrence": {f"{k[0]},{k[1]}": v for k, v in self._cooccurrence.items()},
+            "edges": [
+                {"src": u, "tgt": v, "weight": round(d["weight"], 6), "tactic_src": self._tactic_map.get(u, "unknown"), "tactic_tgt": self._tactic_map.get(v, "unknown")}
+                for u, v, d in self._graph.edges(data=True)
+                if d.get("weight", 1.0) < 1.0
+            ],
+            "node_count": self._graph.number_of_nodes(),
+            "edge_count": self._graph.number_of_edges(),
+            "learned_pairs": len(self._cooccurrence),
+        }
+
+    def import_weights(self, data: dict, merge: bool = True) -> int:
+        """Importa pesos desde export_weights() de otra instancia de Pantheon.
+
+        Args:
+            data  — dict con formato export_weights()
+            merge — True: suma conteos (recomendado); False: sobreescribe
+
+        Returns:
+            Número de pares de co-ocurrencia actualizados.
+        """
+        cooc = data.get("cooccurrence", {})
+        updated = 0
+        for key_str, count in cooc.items():
+            parts = key_str.split(",", 1)
+            if len(parts) != 2:
+                continue
+            src, tgt = parts[0].strip(), parts[1].strip()
+            key = (src, tgt)
+            if merge:
+                self._cooccurrence[key] = self._cooccurrence.get(key, 0) + int(count)
+            else:
+                self._cooccurrence[key] = int(count)
+            weight = max(0.1, 1.0 / (1 + self._cooccurrence[key]))
+            if self._graph.has_edge(src, tgt):
+                self._graph[src][tgt]["weight"] = weight
+            else:
+                self._graph.add_edge(src, tgt, weight=weight)
+                for node in (src, tgt):
+                    if "tactic" not in self._graph.nodes[node]:
+                        self._graph.nodes[node]["tactic"] = self._tactic_map.get(node, "unknown")
+            updated += 1
+        return updated
+
+    def import_ioc_list(self, iocs: list[dict]) -> int:
+        """Importa una lista de IOCs externos y actualiza co-ocurrencias.
+
+        Cada IOC debe tener al menos {"technique_sequence": ["T1190", "T1059", ...]}.
+        Acepta también formato {"ttps": [...]} como alias.
+        Retorna el número de secuencias procesadas.
+        """
+        processed = 0
+        for ioc in iocs:
+            seq = ioc.get("technique_sequence") or ioc.get("ttps") or []
+            if len(seq) >= 2:
+                self.update_cooccurrence(seq)
+                processed += 1
+        return processed
+
     @property
     def technique_ids(self) -> list[str]:
         return list(self._graph.nodes)
