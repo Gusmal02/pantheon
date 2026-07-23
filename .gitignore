@@ -6,3 +6,8 @@ data/raw/
 data/processed/
 audit/precommit.log
 audit/*.log
+connector_configs.json
+bridge_jwt.txt
+*.pdf
+.claude/
+deploy/

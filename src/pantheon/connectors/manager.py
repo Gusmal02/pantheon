@@ -41,7 +41,7 @@ _DEFAULTS: dict[str, dict] = {
 }
 
 # Config guardada en el directorio raíz del proyecto
-_CONFIG_PATH = Path(__file__).resolve().parents[4] / "connector_configs.json"
+_CONFIG_PATH = Path(__file__).resolve().parents[3] / "connector_configs.json"
 
 _shared: "ConnectorManager | None" = None
 _shared_lock = threading.Lock()

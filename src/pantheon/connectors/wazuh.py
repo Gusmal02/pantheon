@@ -39,6 +39,8 @@ class WazuhConnector(BaseConnector):
     def __init__(self, name: str, config: dict) -> None:
         super().__init__(name, config)
         self._last_alert_id: str | None = None
+        self._jwt: str | None = None
+        self._jwt_expires: float = 0.0
 
     def _ssl_ctx(self) -> ssl.SSLContext:
         ctx = ssl.create_default_context()
@@ -47,16 +49,39 @@ class WazuhConnector(BaseConnector):
             ctx.verify_mode = ssl.CERT_NONE
         return ctx
 
-    def _auth_header(self) -> str:
+    def _get_jwt(self) -> str | None:
+        """Obtiene JWT via POST /security/user/authenticate. Cachea 14 min."""
+        if self._jwt and time.time() < self._jwt_expires:
+            return self._jwt
         user = self._config.get("username", "admin")
-        pwd = self._config.get("password", "")
-        return "Basic " + base64.b64encode(f"{user}:{pwd}".encode()).decode()
+        pwd  = self._config.get("password", "")
+        base = self._config.get("api_url", "").rstrip("/")
+        basic = "Basic " + base64.b64encode(f"{user}:{pwd}".encode()).decode()
+        try:
+            req = urllib.request.Request(
+                f"{base}/security/user/authenticate",
+                method="POST",
+                headers={"Authorization": basic},
+            )
+            with urllib.request.urlopen(req, context=self._ssl_ctx(), timeout=5) as resp:
+                data = json.loads(resp.read())
+            token = data.get("data", {}).get("token")
+            if token:
+                self._jwt = token
+                self._jwt_expires = time.time() + 840  # 14 min (expira en 15)
+                return self._jwt
+        except Exception:
+            pass
+        return None
 
     def _get(self, path: str, timeout: int = 5) -> Any:
+        token = self._get_jwt()
+        if not token:
+            raise PermissionError("No se pudo autenticar en Wazuh API (verifica usuario/contraseña)")
         base = self._config.get("api_url", "").rstrip("/")
         req = urllib.request.Request(
             f"{base}{path}",
-            headers={"Authorization": self._auth_header()},
+            headers={"Authorization": f"Bearer {token}"},
         )
         with urllib.request.urlopen(req, context=self._ssl_ctx(), timeout=timeout) as resp:
             return json.loads(resp.read())

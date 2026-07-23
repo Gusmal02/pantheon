@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     # Rate limiting de la API REST
     api_rate_limit: int = 120   # max requests por IP por minuto
 
+    # OSINT — enrichment de threat intelligence externa para Hermes
+    abuseipdb_api_key: str = ""          # API key de AbuseIPDB (gratis en abuseipdb.com)
+    osint_cache_ttl_secs: int = 3600     # TTL del caché en memoria (1 hora)
+    osint_request_timeout_secs: int = 5  # timeout por fuente OSINT
+
     @property
     def postgres_dsn(self) -> str:
         return (

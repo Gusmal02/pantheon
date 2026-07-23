@@ -163,12 +163,14 @@ class PantheonPipeline:
         )
 
     def get_hypotheses(self, operator_id: str, limit: int = 10) -> list[dict]:
-        """Devuelve las hipótesis rankeadas más recientes para el operador."""
+        """Devuelve las hipótesis rankeadas más recientes (todos los operadores)."""
         with self._lock:
-            results = list(self._cache.get(operator_id, []))
+            all_results: list = []
+            for cache_deque in self._cache.values():
+                all_results.extend(cache_deque)
 
         hypotheses: list[dict] = []
-        for hr in results:
+        for hr in all_results:
             for rh in hr.hypotheses:
                 hypotheses.append({
                     "id": rh.candidate.id,
@@ -186,6 +188,10 @@ class PantheonPipeline:
         return hypotheses[:limit]
 
     # ── Privado ───────────────────────────────────────────────────────────────
+
+    def reset_hermes(self) -> None:
+        """Fuerza recarga de Hermes con el modelo Ollama activo."""
+        self._hermes = None
 
     def _get_hermes(self) -> HermesAgent:
         if self._hermes is None:

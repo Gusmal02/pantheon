@@ -17,6 +17,18 @@ from pantheon.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Config de LLM editable en runtime sin reiniciar (overrides .env)
+_runtime: dict[str, str] = {}
+
+
+def update_runtime(model: str | None = None, base_url: str | None = None) -> None:
+    if model:    _runtime["model"]    = model
+    if base_url: _runtime["base_url"] = base_url
+
+
+def get_runtime_model()    -> str: return _runtime.get("model")    or settings.ollama_model
+def get_runtime_base_url() -> str: return _runtime.get("base_url") or settings.ollama_base_url
+
 
 @dataclass
 class _OllamaResponse:
@@ -41,7 +53,7 @@ class OllamaLLM:
         self,
         model: str = settings.ollama_model,
         base_url: str = settings.ollama_base_url,
-        timeout: float = 30.0,
+        timeout: float = 55.0,
     ) -> None:
         self._model   = model
         self._url     = base_url.rstrip("/") + "/api/chat"
@@ -82,14 +94,16 @@ class OllamaLLM:
     @classmethod
     def try_create(
         cls,
-        model: str = settings.ollama_model,
-        base_url: str = settings.ollama_base_url,
+        model: str | None = None,
+        base_url: str | None = None,
     ) -> Optional["OllamaLLM"]:
         """
         Intenta conectar con Ollama y crea una instancia si está disponible.
-
-        Returns None si Ollama no responde (modo sin LLM: fallbacks deterministas).
+        Prioridad: argumento > runtime config (War Room) > .env.
+        Returns None si Ollama no responde.
         """
+        model    = model    or get_runtime_model()
+        base_url = base_url or get_runtime_base_url()
         try:
             r = httpx.get(base_url.rstrip("/") + "/api/tags", timeout=2.0)
             if r.status_code == 200:
@@ -99,3 +113,15 @@ class OllamaLLM:
             pass
         logger.info("Ollama no disponible — Hermes usará fallbacks deterministas")
         return None
+
+    @classmethod
+    def list_models(cls, base_url: str | None = None) -> list[str]:
+        """Retorna los nombres de modelos disponibles en Ollama."""
+        base_url = base_url or get_runtime_base_url()
+        try:
+            r = httpx.get(base_url.rstrip("/") + "/api/tags", timeout=3.0)
+            if r.status_code == 200:
+                return [m["name"] for m in r.json().get("models", [])]
+        except Exception:
+            pass
+        return []

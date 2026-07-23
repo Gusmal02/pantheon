@@ -47,7 +47,11 @@ input,textarea{font-family:var(--mono)}
 .cc-tgl.active{background:rgba(34,197,94,.15);border-color:var(--ok)}
 .cc-tgl.active:hover{background:rgba(255,68,68,.12);border-color:var(--crit);color:var(--crit)}
 .cc-msg{padding:6px 16px;font-size:11px;border-top:1px solid var(--border)}
-.cc-body{padding:12px 16px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+.cc-body{padding:12px 16px 14px;border-top:1px solid var(--border);display:none;flex-direction:column;gap:10px}
+.cc-body.open{display:flex}
+.cc-toggle{padding:4px 10px;border:1px solid var(--border2);background:transparent;color:var(--dim);font-size:10px;letter-spacing:.07em;transition:all .15s;border-radius:3px;flex-shrink:0}
+.cc-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.cc-toggle.open{border-color:var(--accent-d);color:var(--accent);background:var(--accent-g)}
 .cc-input{background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:5px 8px;font-size:12px;font-family:var(--mono);border-radius:3px;transition:border-color .15s;flex:1}
 .cc-input:focus{outline:none;border-color:var(--accent)}
 .cc-save{align-self:flex-start;padding:6px 16px;background:var(--accent-g);border:1px solid var(--accent-d);color:var(--accent);font-size:11px;letter-spacing:.07em;font-family:var(--mono);border-radius:3px;transition:all .15s}
@@ -222,6 +226,11 @@ input,textarea{font-family:var(--mono)}
 .eip{font-size:11px;color:var(--text);font-variant-numeric:tabular-nums}
 .ettps{font-size:10px;color:var(--dim)}
 .enarr{font-size:11px;color:var(--dim);line-height:1.35;margin-top:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* ── TAB 7: Fuentes ──────────────────────────────────────────────────────── */
+#tab-src{flex-direction:column;overflow-y:auto}
+#tab-src::-webkit-scrollbar{width:3px}
+#tab-src::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
 /* ── TAB 2: Feed en Vivo ─────────────────────────────────────────────────── */
 #tab-feed{flex-direction:column;overflow:hidden}
@@ -460,6 +469,20 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;ba
     <br>
     <button id="tok-btn" onclick="initWithToken()" id="t-login-btn">CONECTAR</button>
     <div id="tok-err"></div>
+
+    <!-- Generador de token para primer acceso -->
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border2)">
+      <p style="font-size:10px;color:var(--dim);letter-spacing:.08em;margin-bottom:8px">¿PRIMER ACCESO? GENERA TU TOKEN AQUÍ:</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="gen-opid" type="text" placeholder="nombre_operador" autocomplete="off" spellcheck="false"
+          style="flex:1;padding:7px 10px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px">
+        <button onclick="generateToken()"
+          style="padding:7px 14px;background:var(--accent-g);border:1px solid var(--accent-d);color:var(--accent);font-family:var(--mono);font-size:11px;letter-spacing:.06em;white-space:nowrap">
+          GENERAR ▶
+        </button>
+      </div>
+      <div id="gen-msg" style="font-size:11px;margin-top:6px;display:none"></div>
+    </div>
   </div>
 </div>
 
@@ -688,6 +711,13 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;ba
 
   <div class="lb-card">
     <div class="lb-title" id="t-lb-export">EXPORTAR</div>
+    <button id="btn-final-report" onclick="generateFullReport()"
+      style="width:100%;padding:12px;margin-bottom:14px;background:rgba(0,212,255,.1);
+             border:2px solid var(--accent);color:var(--accent);font-family:var(--mono);
+             font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+             cursor:pointer;transition:all .2s">
+      📋 REPORTE FINAL DE SESIÓN RED TEAM
+    </button>
     <div class="export-grid">
       <button class="exp-btn" onclick="exportData('json')">
         <strong>JSON</strong>
@@ -801,13 +831,40 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;ba
     </div>
   </div>
 
+  <!-- LLM / Modelo -->
+  <div class="cfg-card">
+    <div class="cfg-title">LLM / MODELO HERMES</div>
+    <div class="cfg-row" style="flex-wrap:wrap;gap:8px">
+      <span class="cfg-lbl">URL Ollama</span>
+      <input id="llm-url" type="text" value="http://localhost:11434"
+        style="flex:1;min-width:160px;padding:5px 8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px">
+    </div>
+    <div class="cfg-row" style="flex-wrap:wrap;gap:8px;margin-top:6px">
+      <span class="cfg-lbl">Modelo activo</span>
+      <input id="llm-model" type="text" placeholder="llama3.1:8b-instruct-q4_K_M"
+        style="flex:1;min-width:160px;padding:5px 8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:12px">
+      <button onclick="saveLLMConfig()"
+        style="padding:5px 12px;background:var(--accent-g);border:1px solid var(--accent-d);color:var(--accent);font-size:11px;letter-spacing:.05em">
+        APLICAR
+      </button>
+    </div>
+    <div style="margin-top:8px">
+      <button onclick="detectModels()"
+        style="padding:4px 10px;background:var(--surface);border:1px solid var(--border2);color:var(--dim);font-size:11px;letter-spacing:.05em">
+        ⟳ DETECTAR MODELOS DISPONIBLES
+      </button>
+      <div id="llm-models-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+    </div>
+    <div id="llm-msg" style="font-size:11px;margin-top:6px;display:none"></div>
+  </div>
+
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <!-- TAB 7: FUENTES                                                         -->
 <!-- ══════════════════════════════════════════════════════════════════════ -->
 <div class="tabpanel" id="tab-src">
-  <div style="padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;height:100%">
+  <div style="padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;min-height:0">
 
     <!-- Suricata -->
     <div class="connector-card" id="cc-suricata">
@@ -826,10 +883,11 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;ba
         <div class="cc-btns">
           <button class="cc-btn" onclick="testConnector('suricata')" id="ctest-suricata">Probar</button>
           <button class="cc-btn cc-tgl" onclick="toggleConnector('suricata')" id="ctgl-suricata">Habilitar</button>
+          <button class="cc-toggle" onclick="toggleConnectorBody('suricata')" id="ctoggle-suricata">⊞ CFG</button>
         </div>
       </div>
       <div class="cc-msg" id="cerr-suricata" style="display:none"></div>
-      <div class="cc-body">
+      <div class="cc-body" id="cbody-suricata">
         <div class="cfg-row">
           <span class="cfg-lbl" id="cfl-suricata-path">Ruta EVE JSON</span>
           <input class="cc-input" type="text" id="cfi-suricata-eve_json_path" placeholder="/var/log/suricata/eve.json">
@@ -861,10 +919,11 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;ba
         <div class="cc-btns">
           <button class="cc-btn" onclick="testConnector('wazuh')" id="ctest-wazuh">Probar</button>
           <button class="cc-btn cc-tgl" onclick="toggleConnector('wazuh')" id="ctgl-wazuh">Habilitar</button>
+          <button class="cc-toggle" onclick="toggleConnectorBody('wazuh')" id="ctoggle-wazuh">⊞ CFG</button>
         </div>
       </div>
       <div class="cc-msg" id="cerr-wazuh" style="display:none"></div>
-      <div class="cc-body">
+      <div class="cc-body" id="cbody-wazuh">
         <div class="cfg-row">
           <span class="cfg-lbl" id="cfl-wazuh-url">URL API</span>
           <input class="cc-input" type="text" id="cfi-wazuh-api_url" placeholder="https://wazuh-manager:55000" style="flex:1;min-width:200px">
@@ -1071,14 +1130,23 @@ const CHIP_MAP = {injection:'ch-inj',quarantine:'ch-qua',critical_anomaly:'ch-cr
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tabpanel').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
-  if(name==='lb') drawSparkCanvas();
+  if(name==='lb')  drawSparkCanvas();
   if(name==='src') loadConnectors();
+  if(name==='cfg') loadLLMConfig();
 }
 
 // ════════════════════════════════════════════════════════════════════════════
 // FUENTES — Connector management
 // ════════════════════════════════════════════════════════════════════════════
 let _connectorInterval = null;
+
+function toggleConnectorBody(name){
+  const body = document.getElementById(`cbody-${name}`);
+  const btn  = document.getElementById(`ctoggle-${name}`);
+  if(!body) return;
+  const open = body.classList.toggle('open');
+  if(btn){ btn.classList.toggle('open', open); btn.textContent = open ? '▼ CFG' : '⊞ CFG'; }
+}
 
 async function loadConnectors(){
   if(!TOKEN) return;
@@ -1159,16 +1227,22 @@ async function testConnector(name){
   const btn = document.getElementById(`ctest-${name}`);
   if(btn) btn.textContent='…';
   const errEl = document.getElementById(`cerr-${name}`);
+  const ctrl = new AbortController();
+  const tid = setTimeout(()=>ctrl.abort(), 9000);
   try{
-    const r = await fetch(`/connectors/${name}/test`,{headers:{Authorization:`Bearer ${TOKEN}`}});
+    const r = await fetch(`/connectors/${name}/test`,{headers:{Authorization:`Bearer ${TOKEN}`},signal:ctrl.signal});
+    clearTimeout(tid);
     const data = await r.json();
+    const msg = data.message || data.detail || (r.ok ? 'OK' : `HTTP ${r.status}`);
     if(errEl){
       errEl.style.display='block';
       errEl.style.color = data.ok ? 'var(--ok)' : 'var(--warn)';
-      errEl.textContent = data.ok ? `✓ ${data.message}` : `✗ ${data.message}`;
+      errEl.textContent = data.ok ? `✓ ${msg}` : `✗ ${msg}`;
     }
   }catch(e){
-    if(errEl){ errEl.style.display='block'; errEl.style.color='var(--warn)'; errEl.textContent='✗ Error de red'; }
+    clearTimeout(tid);
+    const msg = e.name==='AbortError' ? 'Timeout — verifica que el host esté accesible' : 'Error de red';
+    if(errEl){ errEl.style.display='block'; errEl.style.color='var(--warn)'; errEl.textContent=`✗ ${msg}`; }
   }finally{
     if(btn) btn.textContent = t('cc-btn-test')||'Probar';
   }
@@ -1207,6 +1281,102 @@ async function saveConnectorConfig(name){
 // KILL SWITCH
 // ════════════════════════════════════════════════════════════════════════════
 function openKS(){ document.getElementById('ks-overlay').style.display='flex'; }
+async function loadLLMConfig(){
+  if(!TOKEN) return;
+  try{
+    const r = await fetch('/config/llm',{headers:{Authorization:`Bearer ${TOKEN}`}});
+    if(!r.ok) return;
+    const d = await r.json();
+    document.getElementById('llm-url').value   = d.base_url || 'http://localhost:11434';
+    document.getElementById('llm-model').value = d.model    || '';
+    if(d.available_models && d.available_models.length) _renderModels(d.available_models, d.model);
+  }catch(e){}
+}
+
+function _renderModels(models, active){
+  const el = document.getElementById('llm-models-list');
+  if(!el) return;
+  el.innerHTML = models.map(m=>`
+    <button onclick="document.getElementById('llm-model').value='${m}'"
+      style="padding:3px 9px;font-size:11px;font-family:var(--mono);
+             background:${m===active?'var(--accent-g)':'var(--surface)'};
+             border:1px solid ${m===active?'var(--accent-d)':'var(--border2)'};
+             color:${m===active?'var(--accent)':'var(--dim)'};cursor:pointer">
+      ${m}
+    </button>`).join('');
+}
+
+async function detectModels(){
+  const msgEl = document.getElementById('llm-msg');
+  const url   = document.getElementById('llm-url').value.trim();
+  msgEl.style.display='block'; msgEl.style.color='var(--dim)'; msgEl.textContent='Detectando…';
+  try{
+    const r = await fetch('/config/llm',{headers:{Authorization:`Bearer ${TOKEN}`}});
+    const d = await r.json();
+    if(d.available_models && d.available_models.length){
+      _renderModels(d.available_models, document.getElementById('llm-model').value);
+      msgEl.style.color='var(--ok)'; msgEl.textContent=`✓ ${d.available_models.length} modelos detectados`;
+    } else {
+      msgEl.style.color='var(--warn)'; msgEl.textContent='✗ Ollama no responde o sin modelos instalados';
+    }
+  }catch(e){
+    msgEl.style.color='var(--warn)'; msgEl.textContent='✗ Error al detectar';
+  }
+}
+
+async function saveLLMConfig(){
+  if(!TOKEN) return;
+  const model   = document.getElementById('llm-model').value.trim();
+  const baseUrl = document.getElementById('llm-url').value.trim();
+  const msgEl   = document.getElementById('llm-msg');
+  if(!model){ msgEl.style.display='block'; msgEl.style.color='var(--warn)'; msgEl.textContent='Escribe un nombre de modelo'; return; }
+  msgEl.style.display='block'; msgEl.style.color='var(--dim)'; msgEl.textContent='Aplicando…';
+  try{
+    const r = await fetch('/config/llm',{
+      method:'POST',
+      headers:{Authorization:`Bearer ${TOKEN}`,'Content-Type':'application/json'},
+      body: JSON.stringify({model, base_url: baseUrl})
+    });
+    const d = await r.json();
+    if(d.ok){
+      msgEl.style.color='var(--ok)';
+      msgEl.textContent=`✓ Hermes ahora usa ${d.model} — sin reinicio`;
+    } else {
+      msgEl.style.color='var(--warn)'; msgEl.textContent=`✗ ${d.detail||'Error'}`;
+    }
+  }catch(e){
+    msgEl.style.color='var(--warn)'; msgEl.textContent='✗ Error de red';
+  }
+}
+
+async function generateToken(){
+  const opid = (document.getElementById('gen-opid').value||'').trim();
+  const msgEl = document.getElementById('gen-msg');
+  if(!opid){
+    msgEl.style.display='block'; msgEl.style.color='var(--warn)';
+    msgEl.textContent='Escribe un nombre de operador'; return;
+  }
+  msgEl.style.display='none';
+  try{
+    const r = await fetch('/token',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({operator_id:opid, expire_hours:8})
+    });
+    const data = await r.json();
+    if(data.token){
+      document.getElementById('tok-input').value = data.token;
+      msgEl.style.display='block'; msgEl.style.color='var(--ok)';
+      msgEl.textContent=`✓ Token generado para "${opid}" — pulsa CONECTAR`;
+    } else {
+      throw new Error(data.detail||'Sin token');
+    }
+  }catch(e){
+    msgEl.style.display='block'; msgEl.style.color='var(--warn)';
+    msgEl.textContent=`✗ ${e.message||'No se pudo conectar a Pantheon'}`;
+  }
+}
+
 function closeKS(){ document.getElementById('ks-overlay').style.display='none'; }
 async function doKillSwitch(){
   try{
@@ -1663,23 +1833,88 @@ function exportData(type){
     const txt = '# IPs\n'+ips.join('\n')+'\n\n# TTPs\n'+ttps.join('\n');
     dl(new Blob([txt],{type:'text/plain'}),`pantheon-iocs-${now}.txt`);
   }else if(type==='report'){
-    const lines = [
-      'PANTHEON v2.1 — INCIDENT REPORT',
-      'Generated: '+new Date().toISOString(), '',
-      '=== CONFIRMED HYPOTHESES ===',
-      ...allHyps.map(h=>`[${(h.score||0).toFixed(3)}] ${h.text||''} (${h.source_ip||'?'})`), '',
-      '=== CCI TIMELINE ===',
-      cciHistory.map((v,i)=>i+': '+v.toFixed(3)).join('\n'), '',
-      '=== IOCs ===',
-      [...new Set(allEvents.map(e=>e.source_ip).filter(Boolean))].join('\n')
-    ];
-    dl(new Blob([lines.join('\n')],{type:'text/plain'}),`pantheon-report-${now}.txt`);
+    generateFullReport();
+    return;
   }
 }
 function dl(blob, name){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob); a.download=name; a.click();
   URL.revokeObjectURL(a.href);
+}
+
+async function generateFullReport(){
+  const now = new Date();
+  const nowStr = now.toISOString().slice(0,19).replace(/:/g,'-');
+  const btn = document.getElementById('btn-final-report');
+  if(btn){ btn.textContent='⏳ Generando…'; btn.disabled=true; }
+
+  let escalations = [];
+  try{
+    const r = await fetch('/purple/escalated?limit=200',{headers:{Authorization:`Bearer ${TOKEN}`}});
+    const d = await r.json();
+    escalations = d.escalated||[];
+  }catch(e){}
+
+  const sessionDur = pbBridgeStart ? Math.floor((now-pbBridgeStart)/1000) : 0;
+  const durStr = sessionDur<60 ? sessionDur+'s' : Math.floor(sessionDur/60)+'m '+(sessionDur%60)+'s';
+  const typeCounts = {};
+  for(const e of allEvents) typeCounts[e.attack_type||'normal'] = (typeCounts[e.attack_type||'normal']||0)+1;
+  const crits = allEvents.filter(e=>e.is_critical).length;
+  const avgCci = allEvents.length ? allEvents.reduce((s,e)=>s+(e.cci||0),0)/allEvents.length : 0;
+  const maxCci = allEvents.length ? Math.max(...allEvents.map(e=>e.cci||0)) : 0;
+  const ips    = [...new Set(allEvents.map(e=>e.source_ip).filter(Boolean))];
+  const ttps   = [...new Set(allHyps.flatMap(h=>h.ttp_tags||[]))];
+
+  const sep  = '═'.repeat(62);
+  const sep2 = '─'.repeat(62);
+  const lines = [
+    '╔'+('═'.repeat(60))+'╗',
+    '║   PANTHEON v2.1 — INFORME DE SESIÓN RED TEAM              ║',
+    '╚'+('═'.repeat(60))+'╝',
+    'Generado : '+now.toLocaleString(),
+    'Duración : '+durStr,
+    '',sep,
+    'RESUMEN EJECUTIVO',sep,
+    'Total eventos    : '+allEvents.length,
+    'Eventos críticos : '+crits+(allEvents.length?' ('+((crits/allEvents.length)*100).toFixed(1)+'%)':''),
+    'CCI promedio     : '+avgCci.toFixed(3),
+    'CCI máximo       : '+maxCci.toFixed(3),
+    'IPs origen       : '+ips.length,
+    'Hipótesis Hermes : '+allHyps.length,
+    'Escalados Ares   : '+escalations.length,
+    '',sep2,'Distribución por tipo de evento',sep2,
+    ...Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>('  '+k).padEnd(26)+': '+v),
+    '',sep,
+    'IPs ORIGEN DETECTADAS',sep,
+    ...(ips.length ? ips.map(ip=>'  '+ip) : ['  (ninguna)']),
+    '',sep,
+    'TTPs ATT&CK MAPEADOS',sep,
+    ...(ttps.length ? ttps.map(t=>'  '+t) : ['  (sin datos — Ollama necesario para mapeo TTP)']),
+    '',sep,
+    'ESCALADOS RECIBIDOS DE ARES  ['+escalations.length+']',sep,
+    ...(escalations.length ? escalations.flatMap(e=>[
+      '  ['+((e.severity||'?').toUpperCase()+']').padEnd(10)+' IP: '+(e.source_ip||'?'),
+      '  TTPs    : '+(e.ttp_tags||[]).join(', ')||'—',
+      '  Narrativa: '+(e.narrative||'—').slice(0,120),
+      '  '+sep2,
+    ]) : ['  Sin escalados recibidos de Ares']),
+    '',sep,
+    'HIPÓTESIS HERMES  ['+allHyps.length+']',sep,
+    ...(allHyps.length ? allHyps.flatMap((h,i)=>[
+      '  ['+(i+1)+'] Score: '+(h.score||0).toFixed(3)+'  IP: '+(h.source_ip||'?'),
+      '       '+((h.text||'').slice(0,100)),
+      '  TTPs : '+(h.ttp_tags||[]).join(', ')||'—',
+      '  ATT&CK path: '+(h.attck_suggestions||[]).join(' → ')||'—',
+      '',
+    ]) : ['  Sin hipótesis — verificar que Ollama esté corriendo']),
+    sep,
+    'FIN DEL REPORTE — PANTHEON v2.1',sep,
+  ];
+
+  dl(new Blob([lines.join('\n')],{type:'text/plain'}),`pantheon-redteam-${nowStr}.txt`);
+  showFeedback('✓ Reporte descargado');
+  if(btn){ btn.textContent='📋 REPORTE FINAL'; btn.disabled=false; }
 }
 
 async function exportRemote(type){

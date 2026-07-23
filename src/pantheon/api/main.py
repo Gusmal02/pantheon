@@ -578,6 +578,32 @@ def test_connector(name: str, operator_id: str = Depends(_get_operator)) -> dict
     return get_connector_manager().test(name)
 
 
+# ── LLM config (runtime, sin reiniciar) ──────────────────────────────────────
+
+class LLMConfigRequest(BaseModel):
+    model: str
+    base_url: str = "http://localhost:11434"
+
+
+@app.get("/config/llm", summary="Leer configuración de LLM activa")
+def get_llm_config() -> dict:
+    from pantheon.core.ollama_llm import get_runtime_model, get_runtime_base_url, OllamaLLM, _runtime
+    return {
+        "model":            get_runtime_model(),
+        "base_url":         get_runtime_base_url(),
+        "from_runtime":     bool(_runtime),
+        "available_models": OllamaLLM.list_models(),
+    }
+
+
+@app.post("/config/llm", summary="Cambiar modelo Ollama sin reiniciar")
+def set_llm_config(req: LLMConfigRequest, operator_id: str = Depends(_get_operator)) -> dict:
+    from pantheon.core.ollama_llm import update_runtime
+    update_runtime(model=req.model, base_url=req.base_url)
+    get_pipeline().reset_hermes()
+    return {"ok": True, "model": req.model, "base_url": req.base_url}
+
+
 # ── Knowledge Exchange ────────────────────────────────────────────────────────
 
 @app.get("/export/graph")
